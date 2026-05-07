@@ -5,8 +5,8 @@ docname: draft-mcguinness-oauth-deferred-code-processing-latest
 category: std
 
 ipr: trust200902
-area: Security
-workgroup: OAuth Working Group
+area: "Security"
+workgroup: "Web Authorization Protocol"
 
 keyword:
  - OAuth
