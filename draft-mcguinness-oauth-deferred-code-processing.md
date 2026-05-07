@@ -219,7 +219,7 @@ Deferred processing state MUST NOT be used to expand authorization beyond the or
 
 A deferred request follows this abstract lifecycle:
 
-~~~ aasvg
+~~~ ascii-art
  Initial token request
           |
           v
