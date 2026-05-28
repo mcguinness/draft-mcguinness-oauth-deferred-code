@@ -330,9 +330,23 @@ The client MUST use the most recent deferred code value returned by the authoriz
 
 A client MAY present an `interaction_uri` to a user or another external actor when appropriate for the client application and higher-layer profile. This specification does not require the client to dereference the `interaction_uri`, embed it in a user agent, or use any particular interaction channel.
 
+## Client Capability {#client-capability}
+
+A client MAY declare whether it supports receiving deferred processing responses using the client metadata parameter `deferred_code_processing_supported`. The parameter is a boolean value.
+
+If `true`, the authorization server MAY return deferred processing responses to this client when other eligibility criteria are met. If `false`, the authorization server MUST NOT defer token requests from this client and MUST instead complete the request synchronously, either by issuing an access token response or by returning a terminal token endpoint error response.
+
+A client that has not registered this parameter is treated as if the value is `true`. The default reflects that a deferred processing response uses the OAuth token endpoint error response form defined by {{RFC6749}}: a client unaware of this specification observes the response as a token endpoint error and abandons the request without protocol harm, so an authorization server offering deferral does not place an unaware client in a worse position than returning a terminal error today.
+
+A client SHOULD register `deferred_code_processing_supported=false` when it cannot accept a non-synchronous outcome, for example when the calling code path has a hard latency budget, when the client has no facility to retain or resume continuation state, or when client policy requires sync-or-fail token acquisition.
+
+Capability is a static property of the client implementation, expressed in client metadata. This specification does not define a per-request opt-in parameter; the same client cannot meaningfully support deferred processing on one request and not another, and a per-request flag would force one layer of the client stack to assert capability on behalf of another.
+
+Client metadata is registered as defined by {{RFC7591}} or by an authorization server's local registration mechanism.
+
 ## Authorization Server Behavior
 
-The authorization server is responsible for deciding whether a token request is eligible for deferred processing. The authorization server MAY apply local policy, grant-type-specific policy, client policy, resource policy, or higher-layer profile requirements when making that decision.
+The authorization server is responsible for deciding whether a token request is eligible for deferred processing. The authorization server MAY apply local policy, grant-type-specific policy, client policy, client capability declared in client metadata (see {{client-capability}}), resource policy, or higher-layer profile requirements when making that decision.
 
 The authorization server MUST make continuation responses depend on the deferred processing state associated with the deferred code, not on new grant parameters supplied by the client.
 
@@ -1100,7 +1114,19 @@ Specification document(s):
 
 ## OAuth Dynamic Client Registration Metadata Registry
 
-This specification registers the following parameter in the "OAuth Dynamic Client Registration Metadata" registry established by {{RFC7591}}.
+This specification registers the following parameters in the "OAuth Dynamic Client Registration Metadata" registry established by {{RFC7591}}.
+
+Client Metadata Name:
+: `deferred_code_processing_supported`
+
+Client Metadata Description:
+: Boolean value indicating whether the client supports receiving deferred processing responses at the token endpoint.
+
+Change Controller:
+: IETF
+
+Specification Document(s):
+: This document
 
 Client Metadata Name:
 : `deferred_code_notification_endpoint`
