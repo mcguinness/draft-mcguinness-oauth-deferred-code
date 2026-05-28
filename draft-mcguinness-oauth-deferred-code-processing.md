@@ -57,9 +57,9 @@ informative:
 
 --- abstract
 
-This specification defines deferred processing semantics for OAuth token requests that cannot complete synchronously, by introducing a continuation mechanism at the token endpoint.
+This specification defines deferred processing semantics for OAuth requests that cannot complete synchronously, by introducing a continuation mechanism that applies to both token endpoint and authorization endpoint processing.
 
-An authorization server can defer completion of any OAuth token request and return a `deferred_code` representing suspended token processing state. Clients can later resume processing using the deferred code grant type.
+An authorization server can defer completion of an OAuth token request or authorization request and return a `deferred_code` representing suspended processing state. Clients later resume processing using the deferred code grant type at the token endpoint, regardless of which endpoint the original request was made to.
 
 This specification also defines optional interaction continuation semantics for deferred requests that require external interaction.
 
@@ -69,7 +69,7 @@ This specification intentionally remains at the OAuth layer and does not define 
 
 # Introduction {#introduction}
 
-Traditional OAuth token processing assumes that token issuance decisions can be completed synchronously during evaluation of the token request.
+Traditional OAuth processing assumes that token issuance decisions can be completed synchronously, whether during evaluation of a token request at the token endpoint or during evaluation of an authorization request at the authorization endpoint.
 
 In practice, many deployments require token issuance to pause pending external processing, including:
 
@@ -77,17 +77,19 @@ In practice, many deployments require token issuance to pause pending external p
 * attestation validation for workloads, devices, or transactions,
 * enterprise approval or delegated authorization workflows,
 * identity proofing and transaction verification,
+* step-up authentication during the front-channel flow,
 * cross-domain authorization orchestration.
 
-Existing OAuth and OpenID Connect specifications address portions of this problem for specific protocols or grant types. This specification instead defines a generalized deferred execution model for OAuth token endpoint processing.
+Existing OAuth and OpenID Connect specifications address portions of this problem for specific protocols or grant types, including the polling model of the OAuth Device Authorization Grant {{RFC8628}} and the backchannel authentication flow of {{CIBA}}. This specification instead defines a generalized deferred execution model that unifies the continuation pattern across origination points: both token endpoint requests and authorization endpoint requests may be deferred, and continuation occurs uniformly at the token endpoint.
 
-This specification separates token processing state management from higher-layer identity, authentication, and user interaction semantics.
+This specification separates processing state management from higher-layer identity, authentication, and user interaction semantics.
 
 This specification defines:
 
-* deferred processing semantics for token requests,
+* deferred processing semantics for token requests and authorization requests,
 * the `deferred_code` continuation reference,
 * the deferred code grant type,
+* deferred authorization responses delivered through the user agent redirect,
 * optional interaction continuation semantics,
 * continuation polling guidance,
 * authorization server metadata extensions.
@@ -109,8 +111,11 @@ Protocols such as OpenID Connect MAY define profiles and additional processing r
 
 # Terminology
 
+Originating Request:
+: The OAuth request whose processing has been deferred. The originating request is either a token request submitted to the token endpoint or an authorization request submitted to the authorization endpoint.
+
 Deferred Code:
-: An opaque continuation reference representing deferred processing state associated with a previously submitted token request.
+: An opaque continuation reference representing deferred processing state associated with an originating request.
 
 Deferred Code Grant Type:
 : A continuation grant type encoded using the OAuth extension grant mechanism to resume processing of a previously deferred request.
@@ -119,10 +124,16 @@ Interaction URI:
 : A URI where external interaction associated with a deferred request can occur.
 
 Deferred Request:
-: A token request whose processing has been deferred by the authorization server.
+: An originating request whose processing has been deferred by the authorization server.
+
+Deferred Authorization Response:
+: An authorization endpoint response that conveys a `deferred_code` to the client through the redirection endpoint, as defined in {{authorization-endpoint-extensions}}.
+
+Deferred Processing Response:
+: A token endpoint response that conveys a `deferred_code` to the client, as defined in {{deferred-processing-responses}}.
 
 Deferred Processing State:
-: Authorization server state associated with a deferred request, including the original token request context, client security context, processing status, expiration, and any implementation-defined asynchronous processing context.
+: Authorization server state associated with a deferred request, including the originating request context, client security context, processing status, expiration, and any implementation-defined asynchronous processing context.
 
 Continuation Request:
 : An access token request using the deferred code grant type to resume processing of a deferred request.
@@ -132,15 +143,17 @@ Continuation Response:
 
 # Architectural Model
 
-This specification introduces deferred execution semantics to OAuth token processing.
+This specification introduces deferred execution semantics to OAuth processing.
 
-The authorization server can temporarily suspend completion of a token request while external interaction or asynchronous evaluation occurs. Suspension does not create a new authorization transaction. It preserves the original token request and resumes evaluation of that request later.
+The authorization server can temporarily suspend completion of an originating request while external interaction or asynchronous evaluation occurs. Suspension does not create a new authorization transaction. It preserves the originating request and resumes evaluation of that request later.
 
 This specification uses a continuation architecture with three responsibilities:
 
-* The client submits an ordinary OAuth token request.
-* The authorization server determines that token processing cannot complete synchronously and creates deferred processing state.
-* The client resumes the suspended processing by presenting a deferred code at the token endpoint.
+* The client submits an ordinary OAuth request to either the token endpoint or the authorization endpoint.
+* The authorization server determines that processing cannot complete synchronously and creates deferred processing state. The authorization server returns a deferred processing response (for token endpoint requests) or a deferred authorization response (for authorization endpoint requests).
+* The client resumes the suspended processing by presenting the deferred code at the token endpoint using the deferred code grant type.
+
+The continuation interface is the token endpoint in all cases. The originating endpoint determines how the initial `deferred_code` is delivered, but does not affect the continuation polling mechanism, completion vocabulary, or state machine.
 
 The OAuth layer is responsible only for:
 
@@ -167,8 +180,8 @@ This separation allows higher-layer protocols such as OpenID Connect to profile 
 This specification is designed to:
 
 * preserve existing OAuth grant semantics,
-* allow deferred completion for arbitrary token endpoint requests,
-* keep the continuation interface at the token endpoint,
+* allow deferred completion for arbitrary token endpoint and authorization endpoint requests,
+* unify the continuation interface at the token endpoint regardless of which endpoint received the originating request,
 * avoid client interpretation of server-side processing state,
 * support both interactive and non-interactive asynchronous processing,
 * allow higher-layer profiles to define user-facing or identity-specific behavior.
@@ -177,7 +190,7 @@ This specification is designed to:
 
 This specification does not define:
 
-* a new authorization endpoint flow,
+* a new authorization endpoint flow distinct from existing authorization request processing,
 * a redirect-based interaction protocol,
 * a user authentication protocol,
 * push delivery of access tokens or identity assertions,
@@ -188,15 +201,15 @@ The notification mode defined in {{notification}} signals state changes only and
 
 ## Processing Model
 
-The authorization server processes an initial access token request according to the rules of the requested grant type. During that processing, the authorization server can reach one of the following outcomes:
+The authorization server processes an originating request according to the rules of the endpoint and (for token requests) the requested grant type. During that processing, the authorization server can reach one of the following outcomes:
 
-* the request fails synchronously and the authorization server returns a token endpoint error response;
-* the request succeeds synchronously and the authorization server returns an access token response;
-* the request is valid but cannot complete synchronously, so the authorization server creates deferred processing state and returns a deferred processing response.
+* the request fails synchronously and the authorization server returns the appropriate error response for the endpoint;
+* the request succeeds synchronously and the authorization server returns the appropriate success response for the endpoint (an access token response, an authorization code, or an access token via redirect);
+* the request is valid but cannot complete synchronously, so the authorization server creates deferred processing state and returns either a deferred processing response (for token endpoint originating requests, see {{deferred-processing-responses}}) or a deferred authorization response (for authorization endpoint originating requests, see {{authorization-endpoint-extensions}}).
 
-The deferred processing state is an authorization server internal record. It is referenced by the deferred code but is not exposed to the client. The state MUST preserve the original token request context needed to complete token processing. The client MUST NOT resubmit the original grant parameters during continuation.
+The deferred processing state is an authorization server internal record. It is referenced by the deferred code but is not exposed to the client. The state MUST preserve the originating request context needed to complete processing. The client MUST NOT resubmit the originating request parameters during continuation, except as defined for the first continuation request following authorization endpoint deferral (see {{authorization-endpoint-pkce}}).
 
-Continuation requests resume evaluation of the original token request. The authorization server uses the deferred code to locate deferred processing state, verifies the continuation request against the binding requirements for that state, and returns one of the continuation responses defined in this specification.
+Continuation requests resume evaluation of the originating request. The authorization server uses the deferred code to locate deferred processing state, verifies the continuation request against the binding requirements for that state, and returns one of the continuation responses defined in this specification. When the originating request was made at the authorization endpoint, successful completion returns an access token response directly; no separate authorization code redemption step occurs.
 
 ## Deferred Processing State
 
@@ -204,16 +217,19 @@ Deferred processing state has an implementation-defined representation, but it M
 
 At minimum, the authorization server MUST associate deferred processing state with:
 
-* the original token request parameters needed to complete processing,
-* the client identity or public-client binding information associated with the original request,
-* sender-constraining or proof-of-possession requirements associated with the original request,
+* the originating request type (token endpoint or authorization endpoint),
+* the originating request parameters needed to complete processing,
+* the client identity or public-client binding information associated with the originating request,
+* sender-constraining or proof-of-possession requirements associated with the originating request,
 * the current processing status,
 * expiration time or expiration policy,
 * any deferred code values currently valid for the state.
 
+For authorization endpoint originating requests, the deferred processing state MUST additionally preserve the validated `redirect_uri`, the requested response type, the requested `scope`, any `code_challenge` and `code_challenge_method` values, and any other authorization request parameters required to complete processing.
+
 The authorization server SHOULD also associate deferred processing state with requested resources, requested scopes, grant-specific input artifacts, policy evaluation inputs, interaction status, and audit information needed for security monitoring.
 
-Deferred processing state MUST NOT be used to expand authorization beyond the original token request. Any authorization, approval, authentication, or policy result obtained during deferred processing can only constrain or complete the original request.
+Deferred processing state MUST NOT be used to expand authorization beyond the originating request. Any authorization, approval, authentication, or policy result obtained during deferred processing can only constrain or complete the originating request.
 
 ## State Lifecycle
 
@@ -278,18 +294,19 @@ The authorization server MAY transition between Pending and Interaction Required
 
 # Deferred Code Semantics {#deferred-code-semantics}
 
-A `deferred_code` is an opaque continuation reference representing deferred processing state associated with a previously submitted token request.
+A `deferred_code` is an opaque continuation reference representing deferred processing state associated with a previously submitted originating request. The originating request is either a token request submitted to the token endpoint or an authorization request submitted to the authorization endpoint.
 
 A `deferred_code`:
 
 * is not an access token,
 * is not a refresh token,
+* is not an authorization code,
 * is not intended for resource server access,
 * does not represent authorization delegation by itself,
-* is only valid at the authorization server token endpoint,
+* is only valid as input to the deferred code grant type at the authorization server token endpoint,
 * MUST be treated as opaque by clients.
 
-The authorization server MUST bind the `deferred_code` to the original token request and associated client security context.
+The authorization server MUST bind the `deferred_code` to the originating request and associated client security context.
 
 The authorization server MAY rotate deferred codes during continuation processing.
 
@@ -299,9 +316,9 @@ If a deferred code is not sender-constrained or otherwise bound to proof-of-poss
 
 # Deferred Processing
 
-When processing a token request, the authorization server MAY defer completion of the request.
+When processing an originating request, the authorization server MAY defer completion of the request. The originating request may be a token request submitted to the token endpoint or an authorization request submitted to the authorization endpoint.
 
-Deferred processing allows token issuance to continue asynchronously after the initial token request has been evaluated.
+Deferred processing allows token issuance to continue asynchronously after the originating request has been evaluated.
 
 A deferred request MAY involve:
 
@@ -367,11 +384,132 @@ Higher-layer profiles can build on this specification by defining:
 
 Higher-layer profiles MUST NOT require clients to interpret the `deferred_code` value.
 
+# Authorization Endpoint Extensions {#authorization-endpoint-extensions}
+
+The following sections extend the OAuth authorization endpoint defined in {{RFC6749}} to allow the authorization server to defer completion of an authorization request.
+
+## Deferred Authorization Response
+
+When the authorization server determines that an authorization request cannot complete synchronously, it MAY return a deferred authorization response in place of an authorization response or authorization error response.
+
+The authorization server MUST validate the authorization request to the extent necessary to determine eligibility for deferred processing before creating deferred processing state. This includes validating `client_id`, `redirect_uri`, `response_type`, and any other request parameters whose validation does not depend on completion of the deferred work. The authorization server MUST NOT issue a `deferred_code` for a request whose redirect URI cannot be validated.
+
+The authorization server returns the deferred authorization response by redirecting the user agent to the client's redirection endpoint using the same redirect mechanism it would use for a synchronous authorization response. The response parameters are conveyed in the query component of the redirect URI.
+
+The response includes the following parameters:
+
+deferred_code:
+: REQUIRED. The deferred code value, as defined in {{deferred-code-semantics}}.
+
+state:
+: REQUIRED if the authorization request included a `state` parameter. The exact value received from the client.
+
+expires_in:
+: REQUIRED. The remaining lifetime of the deferred code in seconds.
+
+interaction_uri:
+: OPTIONAL. A URI identifying where external interaction associated with the deferred request can occur, as defined in {{interaction-uri}}. The `interaction_uri` MAY be omitted when external interaction is not yet known to be required; subsequent continuation responses MAY introduce an `interaction_uri` if the state transitions to Interaction Required.
+
+interval:
+: OPTIONAL. The minimum number of seconds the client SHOULD wait before submitting a continuation request.
+
+A deferred authorization response MUST NOT include the `code` parameter defined by {{RFC6749}} for the authorization code grant, the `access_token` parameter defined by {{RFC6749}} for the implicit grant, or any other authorization response parameter that would indicate synchronous completion of the originating request.
+
+### Example
+
+A deferred authorization response delivered as a redirect:
+
+~~~ http
+HTTP/1.1 302 Found
+Location: https://client.example.com/cb?
+  deferred_code=8N5B2K1&
+  state=xyz&
+  expires_in=600&
+  interaction_uri=https%3A%2F%2Fas.example.com%2Finteract%2F8N5B2K1
+~~~
+
+## Client Processing of Deferred Authorization Responses
+
+A client that receives a deferred authorization response MUST verify the `state` parameter exactly as it would for any authorization response, as required by {{RFC6749}} and {{RFC9700}}.
+
+The client MUST NOT treat the deferred authorization response as a successful authorization. The client resumes processing by submitting a continuation request to the token endpoint using the deferred code grant type defined in {{continuation-request}}. The client does not redeem an authorization code; the continuation request completes the originating authorization request and, when processing completes successfully, the token endpoint returns an access token response directly.
+
+A client MAY present the `interaction_uri` to the user. This specification does not require any particular interaction channel.
+
+## PKCE for Deferred Authorization Responses {#authorization-endpoint-pkce}
+
+When the originating authorization request included a `code_challenge` parameter as defined by {{RFC7636}}, the authorization server MUST associate the corresponding `code_challenge` and `code_challenge_method` values with the deferred processing state.
+
+PKCE verification cannot be performed at the authorization endpoint because the client has not yet presented the `code_verifier`. The first continuation request following a deferred authorization response MUST include the `code_verifier` parameter when PKCE was used on the originating authorization request, and the authorization server MUST verify the verifier against the stored `code_challenge` using the stored `code_challenge_method` before completing the deferred processing.
+
+This is an exception to the general prohibition in {{continuation-request}} on presenting `code_verifier` on continuation requests. The exception applies only to the first continuation request following a deferred authorization response, and only when PKCE was used on the originating authorization request. The `code_verifier` MUST NOT be re-presented on subsequent continuation requests; after the first continuation, PKCE verification state is preserved in the deferred processing state.
+
+If PKCE verification fails, the authorization server MUST reject the continuation request with `invalid_grant` and MUST terminate the deferred processing state.
+
+For authorization endpoint deferral of public client authorization requests, PKCE is REQUIRED in accordance with {{RFC9700}}. The `code_verifier` presented on the first continuation request serves as the continuation binding for the originating public client, in combination with any other binding mechanism applicable to the originating request.
+
+## Authorization Endpoint Errors
+
+When the authorization server cannot create deferred processing state for an authorization request, it returns the appropriate authorization endpoint error response defined by {{RFC6749}} in place of a deferred authorization response. The authorization server MUST NOT issue a `deferred_code` to defer reporting of a known-fatal error.
+
+## Example: Front-Channel Step-Up
+
+A client initiates an authorization code request:
+
+~~~ http
+GET /authorize?
+  response_type=code&
+  client_id=s6BhdRkqt3&
+  redirect_uri=https%3A%2F%2Fclient.example.com%2Fcb&
+  scope=transfer.execute&
+  state=xyz&
+  code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&
+  code_challenge_method=S256 HTTP/1.1
+Host: as.example.com
+~~~
+
+The authorization server determines that the requested operation requires step-up authentication and a manager approval, and defers the authorization. It redirects the user agent back to the client:
+
+~~~ http
+HTTP/1.1 302 Found
+Location: https://client.example.com/cb?
+  deferred_code=8N5B2K1&
+  state=xyz&
+  expires_in=900&
+  interaction_uri=https%3A%2F%2Fas.example.com%2Finteract%2F8N5B2K1
+~~~
+
+The client presents the `interaction_uri` to the user, then submits a continuation request with the PKCE verifier:
+
+~~~ http
+POST /token HTTP/1.1
+Host: as.example.com
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Adeferred_code&
+deferred_code=8N5B2K1&
+code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk&
+client_id=s6BhdRkqt3
+~~~
+
+The authorization server verifies the PKCE verifier, finds processing still in progress, and returns:
+
+~~~ json
+{
+  "error": "authorization_pending",
+  "deferred_code": "9P2K7M3",
+  "interval": 5,
+  "expires_in": 880
+}
+~~~
+
+Subsequent continuation requests omit the `code_verifier`. Once the step-up and approval complete, the continuation response returns an access token response directly.
+
 # Token Endpoint Extensions
 
 The following sections extend the OAuth token endpoint defined in {{RFC6749}}.
 
-## Deferred Processing Responses
+## Deferred Processing Responses {#deferred-processing-responses}
 
 When the authorization server defers processing of a token request, it returns a token endpoint error response indicating deferred processing state.
 
@@ -532,9 +670,12 @@ deferred_code:
 : REQUIRED. The deferred code previously returned by the authorization server.
 
 client_id:
-: REQUIRED if the client is not authenticating with the authorization server and the original token request included a client identifier. The value MUST identify the same client as the original token request. This follows the unauthenticated client request pattern defined for the token endpoint in {{RFC6749}}.
+: REQUIRED if the client is not authenticating with the authorization server and the originating request included a client identifier. The value MUST identify the same client as the originating request. This follows the unauthenticated client request pattern defined for the token endpoint in {{RFC6749}}.
 
-The request MUST NOT include parameters that modify or replace parameters from the original token request, including `scope`, `resource` as defined by {{RFC8707}}, `audience`, `authorization_details` as defined by {{RFC9396}}, `redirect_uri`, `code_verifier`, `subject_token`, `actor_token`, `assertion`, or grant-type-specific parameters from the original request. The authorization server MUST reject such requests with `invalid_request`.
+code_verifier:
+: REQUIRED on the first continuation request following a deferred authorization response when the originating authorization request included a `code_challenge` parameter, as defined in {{authorization-endpoint-pkce}}. MUST NOT be included on any other continuation request.
+
+The request MUST NOT include parameters that modify or replace parameters from the originating request, including `scope`, `resource` as defined by {{RFC8707}}, `audience`, `authorization_details` as defined by {{RFC9396}}, `redirect_uri`, `subject_token`, `actor_token`, `assertion`, or grant-type-specific parameters from the originating request. The authorization server MUST reject such requests with `invalid_request`. The `code_verifier` parameter is permitted on continuation requests only as defined above for authorization endpoint deferral.
 
 If the original token request was made by an authenticated client, the continuation request MUST authenticate the same client. If the original token request was made by an unauthenticated client that included a `client_id`, the continuation request MUST include the same `client_id`. If the original token request used sender-constrained client authentication or proof-of-possession material, the authorization server MUST apply equivalent sender-constraining requirements to the continuation request.
 
@@ -857,11 +998,19 @@ An authorization server that supports this specification and publishes the `gran
 
 ## deferred_code_grant_types_supported
 
-JSON array containing OAuth grant type values for which the authorization server can return deferred processing responses.
+JSON array containing OAuth grant type values for which the authorization server can return deferred processing responses from the token endpoint.
 
-This parameter is REQUIRED when `deferred_code_processing_supported` is `true`. When the authorization server publishes the `grant_types_supported` metadata parameter defined by {{RFC8414}}, the values of this parameter MUST be a subset of `grant_types_supported`. An empty array indicates that no original-request grant types are currently eligible for deferred processing, even though the authorization server otherwise supports the deferred code grant type.
+This parameter is REQUIRED when `deferred_code_processing_supported` is `true`. When the authorization server publishes the `grant_types_supported` metadata parameter defined by {{RFC8414}}, the values of this parameter MUST be a subset of `grant_types_supported`. An empty array indicates that no originating-request grant types are currently eligible for deferred processing at the token endpoint, even though the authorization server otherwise supports the deferred code grant type.
 
-The value `urn:ietf:params:oauth:grant-type:deferred_code` MUST NOT appear in this array because the array describes original token request grant types, not the continuation grant type.
+The value `urn:ietf:params:oauth:grant-type:deferred_code` MUST NOT appear in this array because the array describes originating token request grant types, not the continuation grant type.
+
+## deferred_code_authorization_endpoint_supported
+
+Boolean value indicating support for deferred authorization responses at the authorization endpoint, as defined in {{authorization-endpoint-extensions}}.
+
+If omitted, the default value is `false`.
+
+When `true`, the authorization server MAY return a deferred authorization response in place of an authorization response. The authorization server's policy for when authorization endpoint deferral is applied is implementation-defined and MAY be further constrained by higher-layer profiles.
 
 ## deferred_code_notification_supported
 
@@ -876,6 +1025,8 @@ When `true`, the authorization server MAY deliver notifications to clients that 
 ~~~ json
 {
   "issuer": "https://as.example.com",
+  "authorization_endpoint":
+    "https://as.example.com/authorize",
   "token_endpoint":
     "https://as.example.com/token",
   "revocation_endpoint":
@@ -892,6 +1043,7 @@ When `true`, the authorization server MAY deliver notifications to clients that 
     "client_credentials",
     "urn:ietf:params:oauth:grant-type:token-exchange"
   ],
+  "deferred_code_authorization_endpoint_supported": true,
   "deferred_code_notification_supported": true
 }
 ~~~
@@ -948,6 +1100,18 @@ When rotating deferred codes, authorization servers SHOULD invalidate the previo
 
 If a deferred code is not sender-constrained or otherwise bound to proof-of-possession material, authorization servers MUST rotate the deferred code after each valid continuation request that returns `authorization_pending`, `interaction_required`, or `slow_down`. Authorization servers MAY omit rotation when the deferred code is sender-constrained or protected by an equivalent replay-resistant mechanism.
 
+## Authorization Endpoint Deferral
+
+A `deferred_code` delivered through a deferred authorization response is conveyed via the user-agent redirect, and is therefore subject to the same disclosure surface as an authorization code, including browser history, referer headers, server access logs, and any user-agent extensions that observe redirect traffic.
+
+Authorization servers MUST treat the `deferred_code` returned from the authorization endpoint with at least the protection applied to authorization codes. The deferred code binding, rotation, and sender-constraining requirements defined in {{deferred-code-semantics}} and the deferred code entropy and binding requirements in this section apply unchanged to authorization endpoint deferral.
+
+When PKCE was used on the originating authorization request, the `code_verifier` presented on the first continuation request serves as the primary continuation binding for the originating client instance. When PKCE was not used, the authorization server MUST require sender-constraining or session-binding on continuation requests sufficient to prevent another client instance that obtains the deferred code from completing the continuation, consistent with the public-client continuation binding requirements in {{deferred-processing-responses}}.
+
+Authorization servers MUST validate the `redirect_uri` of the originating authorization request and complete any other authorization request validation that does not depend on completion of the deferred work before issuing the deferred authorization response. Authorization servers MUST NOT use the deferred authorization response mechanism to defer reporting of an authorization request that is known to be unauthorized or malformed.
+
+The `interaction_uri` returned in a deferred authorization response is subject to the same protections as an `interaction_uri` returned in a deferred processing response.
+
 ## Interaction URI Protection
 
 Interaction URIs MUST use HTTPS.
@@ -982,7 +1146,7 @@ Long-lived deferred processing state increases replay risk and can retain sensit
 
 ## Authorization Scope Stability
 
-Continuation processing MUST NOT expand the requested authorization beyond the original token request. Authorization servers MUST evaluate the continuation request using the original request context and MUST reject attempts to substitute new requested resources, scopes, subject tokens, assertions, or other grant inputs.
+Continuation processing MUST NOT expand the requested authorization beyond the originating request. Authorization servers MUST evaluate the continuation request using the originating request context and MUST reject attempts to substitute new requested resources, scopes, subject tokens, assertions, or other grant inputs. This requirement applies equally to deferred token endpoint requests and deferred authorization endpoint requests.
 
 ## Oracle Resistance
 
@@ -1040,7 +1204,7 @@ Parameter name:
 : `deferred_code`
 
 Parameter usage location:
-: token response, token request
+: authorization response, token response, token request
 
 Change controller:
 : IETF
@@ -1052,7 +1216,7 @@ Parameter name:
 : `interaction_uri`
 
 Parameter usage location:
-: token response
+: authorization response, token response
 
 Change controller:
 : IETF
@@ -1092,7 +1256,19 @@ Metadata name:
 : `deferred_code_grant_types_supported`
 
 Metadata description:
-: JSON array containing OAuth grant type values for which the authorization server can return deferred processing responses.
+: JSON array containing OAuth grant type values for which the authorization server can return deferred processing responses from the token endpoint.
+
+Change controller:
+: IETF
+
+Specification document(s):
+: This document
+
+Metadata name:
+: `deferred_code_authorization_endpoint_supported`
+
+Metadata description:
+: Boolean value indicating support for deferred authorization responses at the authorization endpoint.
 
 Change controller:
 : IETF
