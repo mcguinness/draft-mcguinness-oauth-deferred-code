@@ -1053,7 +1053,7 @@ svg {
 </tr></thead>
 <tfoot><tr>
 <td class="left">McGuinness</td>
-<td class="center">Expires 29 November 2026</td>
+<td class="center">Expires 1 December 2026</td>
 <td class="right">[Page]</td>
 </tr></tfoot>
 </table>
@@ -1066,12 +1066,12 @@ svg {
 <dd class="internet-draft">draft-mcguinness-oauth-deferred-code-processing-latest</dd>
 <dt class="label-published">Published:</dt>
 <dd class="published">
-<time datetime="2026-05-28" class="published">28 May 2026</time>
+<time datetime="2026-05-30" class="published">30 May 2026</time>
     </dd>
 <dt class="label-intended-status">Intended Status:</dt>
 <dd class="intended-status">Standards Track</dd>
 <dt class="label-expires">Expires:</dt>
-<dd class="expires"><time datetime="2026-11-29">29 November 2026</time></dd>
+<dd class="expires"><time datetime="2026-12-01">1 December 2026</time></dd>
 <dt class="label-authors">Author:</dt>
 <dd class="authors">
 <div class="author">
@@ -1118,7 +1118,7 @@ svg {
         time. It is inappropriate to use Internet-Drafts as reference
         material or to cite them other than as "work in progress."<a href="#section-boilerplate.1-3" class="pilcrow">¶</a></p>
 <p id="section-boilerplate.1-4">
-        This Internet-Draft will expire on 29 November 2026.<a href="#section-boilerplate.1-4" class="pilcrow">¶</a></p>
+        This Internet-Draft will expire on 1 December 2026.<a href="#section-boilerplate.1-4" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="copyright">
@@ -2115,36 +2115,37 @@ appear in all capitals, as shown here.<a href="#section-2-1" class="pilcrow">¶<
         </h3>
 <p id="section-7.1-1">When the authorization server determines that an authorization request cannot complete synchronously, it <span class="bcp14">MAY</span> return a deferred authorization response in place of an authorization response or authorization error response.<a href="#section-7.1-1" class="pilcrow">¶</a></p>
 <p id="section-7.1-2">The authorization server <span class="bcp14">MUST</span> validate the authorization request to the extent necessary to determine eligibility for deferred processing before creating deferred processing state. This includes validating <code>client_id</code>, <code>redirect_uri</code>, <code>response_type</code>, and any other request parameters whose validation does not depend on completion of the deferred work. The authorization server <span class="bcp14">MUST NOT</span> issue a <code>deferred_code</code> for a request whose redirect URI cannot be validated.<a href="#section-7.1-2" class="pilcrow">¶</a></p>
-<p id="section-7.1-3">The authorization server returns the deferred authorization response by redirecting the user agent to the client's redirection endpoint using the same redirect mechanism it would use for a synchronous authorization response, including any selected <code>response_mode</code> such as <code>query</code>, <code>fragment</code>, or <code>form_post</code>. When <code>response_mode=fragment</code> is in effect, the <code>deferred_code</code> and associated parameters are delivered in the URL fragment component rather than the query component; authorization servers <span class="bcp14">SHOULD</span> consider the implications for in-browser exposure when deciding whether deferral is appropriate for fragment-mode flows.<a href="#section-7.1-3" class="pilcrow">¶</a></p>
-<p id="section-7.1-4">The response includes the following parameters:<a href="#section-7.1-4" class="pilcrow">¶</a></p>
-<span class="break"></span><dl class="dlParallel" id="section-7.1-5">
-          <dt id="section-7.1-5.1">deferred_code:</dt>
-          <dd style="margin-left: 1.5em" id="section-7.1-5.2">
-            <p id="section-7.1-5.2.1"><span class="bcp14">REQUIRED</span>. The deferred code value, as defined in <a href="#deferred-code-semantics" class="auto internal xref">Section 5</a>.<a href="#section-7.1-5.2.1" class="pilcrow">¶</a></p>
+<p id="section-7.1-3">The authorization server returns the deferred authorization response by redirecting the user agent to the client's redirection endpoint using the same redirect mechanism it would use for a synchronous authorization response, including any selected <code>response_mode</code> such as <code>query</code> or <code>form_post</code>.<a href="#section-7.1-3" class="pilcrow">¶</a></p>
+<p id="section-7.1-4">Authorization servers <span class="bcp14">SHOULD NOT</span> return deferred authorization responses with <code>response_mode=fragment</code>. The fragment component is accessible to any script running on the redirect page, including third-party scripts and browser extensions, exposing the <code>deferred_code</code> to a substantially broader attack surface than the query or <code>form_post</code> channels and creating a risk class equivalent to the implicit-flow access token exposure that motivated deprecation of the implicit grant in <span>[<a href="#RFC9700" class="cite xref">RFC9700</a>]</span>. Higher-layer profiles <span class="bcp14">MAY</span> permit fragment mode for specific use cases that justify the exposure with additional controls.<a href="#section-7.1-4" class="pilcrow">¶</a></p>
+<p id="section-7.1-5">The response includes the following parameters:<a href="#section-7.1-5" class="pilcrow">¶</a></p>
+<span class="break"></span><dl class="dlParallel" id="section-7.1-6">
+          <dt id="section-7.1-6.1">deferred_code:</dt>
+          <dd style="margin-left: 1.5em" id="section-7.1-6.2">
+            <p id="section-7.1-6.2.1"><span class="bcp14">REQUIRED</span>. The deferred code value, as defined in <a href="#deferred-code-semantics" class="auto internal xref">Section 5</a>.<a href="#section-7.1-6.2.1" class="pilcrow">¶</a></p>
 </dd>
           <dd class="break"></dd>
-<dt id="section-7.1-5.3">state:</dt>
-          <dd style="margin-left: 1.5em" id="section-7.1-5.4">
-            <p id="section-7.1-5.4.1"><span class="bcp14">REQUIRED</span> if the authorization request included a <code>state</code> parameter. The exact value received from the client.<a href="#section-7.1-5.4.1" class="pilcrow">¶</a></p>
+<dt id="section-7.1-6.3">state:</dt>
+          <dd style="margin-left: 1.5em" id="section-7.1-6.4">
+            <p id="section-7.1-6.4.1"><span class="bcp14">REQUIRED</span> if the authorization request included a <code>state</code> parameter. The exact value received from the client.<a href="#section-7.1-6.4.1" class="pilcrow">¶</a></p>
 </dd>
           <dd class="break"></dd>
-<dt id="section-7.1-5.5">expires_in:</dt>
-          <dd style="margin-left: 1.5em" id="section-7.1-5.6">
-            <p id="section-7.1-5.6.1"><span class="bcp14">REQUIRED</span>. The remaining lifetime of the deferred code in seconds.<a href="#section-7.1-5.6.1" class="pilcrow">¶</a></p>
+<dt id="section-7.1-6.5">expires_in:</dt>
+          <dd style="margin-left: 1.5em" id="section-7.1-6.6">
+            <p id="section-7.1-6.6.1"><span class="bcp14">REQUIRED</span>. The remaining lifetime of the deferred code in seconds.<a href="#section-7.1-6.6.1" class="pilcrow">¶</a></p>
 </dd>
           <dd class="break"></dd>
-<dt id="section-7.1-5.7">interaction_uri:</dt>
-          <dd style="margin-left: 1.5em" id="section-7.1-5.8">
-            <p id="section-7.1-5.8.1"><span class="bcp14">OPTIONAL</span>. A URI identifying where external interaction associated with the deferred request can occur, as defined in <a href="#interaction-uri" class="auto internal xref">Section 8.6</a>. The <code>interaction_uri</code> <span class="bcp14">MAY</span> be omitted when external interaction is not yet known to be required; subsequent continuation responses <span class="bcp14">MAY</span> introduce an <code>interaction_uri</code> if the state transitions to Interaction Required.<a href="#section-7.1-5.8.1" class="pilcrow">¶</a></p>
+<dt id="section-7.1-6.7">interaction_uri:</dt>
+          <dd style="margin-left: 1.5em" id="section-7.1-6.8">
+            <p id="section-7.1-6.8.1"><span class="bcp14">OPTIONAL</span>. A URI identifying where external interaction associated with the deferred request can occur, as defined in <a href="#interaction-uri" class="auto internal xref">Section 8.6</a>. The <code>interaction_uri</code> <span class="bcp14">MAY</span> be omitted when external interaction is not yet known to be required; subsequent continuation responses <span class="bcp14">MAY</span> introduce an <code>interaction_uri</code> if the state transitions to Interaction Required.<a href="#section-7.1-6.8.1" class="pilcrow">¶</a></p>
 </dd>
           <dd class="break"></dd>
-<dt id="section-7.1-5.9">interval:</dt>
-          <dd style="margin-left: 1.5em" id="section-7.1-5.10">
-            <p id="section-7.1-5.10.1"><span class="bcp14">OPTIONAL</span>. The minimum number of seconds the client <span class="bcp14">SHOULD</span> wait before submitting a continuation request.<a href="#section-7.1-5.10.1" class="pilcrow">¶</a></p>
+<dt id="section-7.1-6.9">interval:</dt>
+          <dd style="margin-left: 1.5em" id="section-7.1-6.10">
+            <p id="section-7.1-6.10.1"><span class="bcp14">OPTIONAL</span>. The minimum number of seconds the client <span class="bcp14">SHOULD</span> wait before submitting a continuation request.<a href="#section-7.1-6.10.1" class="pilcrow">¶</a></p>
 </dd>
         <dd class="break"></dd>
 </dl>
-<p id="section-7.1-6">A deferred authorization response <span class="bcp14">MUST NOT</span> include any authorization response parameter that would indicate synchronous completion of the originating request, including but not limited to the <code>code</code> parameter defined by <span>[<a href="#RFC6749" class="cite xref">RFC6749</a>]</span> for the authorization code grant, the <code>access_token</code> parameter defined by <span>[<a href="#RFC6749" class="cite xref">RFC6749</a>]</span> for the implicit grant, and the <code>id_token</code> parameter defined by OpenID Connect <span>[<a href="#OIDC-CORE" class="cite xref">OIDC-CORE</a>]</span> for the implicit or hybrid response types. Higher-layer profiles that define additional authorization response parameters <span class="bcp14">MUST</span> extend this prohibition to any such parameter that would indicate synchronous completion.<a href="#section-7.1-6" class="pilcrow">¶</a></p>
+<p id="section-7.1-7">A deferred authorization response <span class="bcp14">MUST NOT</span> include any authorization response parameter that would indicate synchronous completion of the originating request, including but not limited to the <code>code</code> parameter defined by <span>[<a href="#RFC6749" class="cite xref">RFC6749</a>]</span> for the authorization code grant, the <code>access_token</code> parameter defined by <span>[<a href="#RFC6749" class="cite xref">RFC6749</a>]</span> for the implicit grant, and the <code>id_token</code> parameter defined by OpenID Connect <span>[<a href="#OIDC-CORE" class="cite xref">OIDC-CORE</a>]</span> for the implicit or hybrid response types. Higher-layer profiles that define additional authorization response parameters <span class="bcp14">MUST</span> extend this prohibition to any such parameter that would indicate synchronous completion.<a href="#section-7.1-7" class="pilcrow">¶</a></p>
 <div id="example">
 <section id="section-7.1.1">
           <h4 id="name-example">
@@ -3067,6 +3068,10 @@ assertion=eyJhbGciOi...
 <p id="section-15.7-3">When PKCE was used on the originating authorization request, the <code>code_verifier</code> presented on the first continuation request serves as the primary continuation binding for the originating client instance. When PKCE was not used, the authorization server <span class="bcp14">MUST</span> require sender-constraining or session-binding on continuation requests sufficient to prevent another client instance that obtains the deferred code from completing the continuation, consistent with the public-client continuation binding requirements in <a href="#deferred-processing-responses" class="auto internal xref">Section 8.1</a>.<a href="#section-15.7-3" class="pilcrow">¶</a></p>
 <p id="section-15.7-4">Authorization servers <span class="bcp14">MUST</span> validate the <code>redirect_uri</code> of the originating authorization request and complete any other authorization request validation that does not depend on completion of the deferred work before issuing the deferred authorization response. Authorization servers <span class="bcp14">MUST NOT</span> use the deferred authorization response mechanism to defer reporting of an authorization request that is known to be unauthorized or malformed.<a href="#section-15.7-4" class="pilcrow">¶</a></p>
 <p id="section-15.7-5">The <code>interaction_uri</code> returned in a deferred authorization response is subject to the same protections as an <code>interaction_uri</code> returned in a deferred processing response.<a href="#section-15.7-5" class="pilcrow">¶</a></p>
+<p id="section-15.7-6">Authorization servers <span class="bcp14">SHOULD</span> apply more conservative lifetime defaults to deferred codes returned through the authorization endpoint redirect than to deferred codes returned only at the token endpoint, because the redirect channel exposes the value to browser history, server logs, and referer headers that the token endpoint does not.<a href="#section-15.7-6" class="pilcrow">¶</a></p>
+<p id="section-15.7-7">Authorization servers <span class="bcp14">SHOULD</span> treat deferred codes returned through the authorization endpoint redirect as one-time-use even at short lifetimes, rotating the value on the first continuation response that does not complete the request. The redirect channel exposes the initially returned value to multiple log surfaces; the value rotated on first continuation arrives only at the token endpoint and is not subject to the same disclosure surface.<a href="#section-15.7-7" class="pilcrow">¶</a></p>
+<p id="section-15.7-8">When a deferred code returned through the authorization endpoint redirect has a lifetime measured in hours or days under the rules of <a href="#lifetime-considerations" class="auto internal xref">Section 15.11</a>, the authorization server <span class="bcp14">MUST</span> sender-constrain the deferred code through DPoP <span>[<a href="#RFC9449" class="cite xref">RFC9449</a>]</span>, mutual-TLS client certificate binding <span>[<a href="#RFC8705" class="cite xref">RFC8705</a>]</span>, or an equivalent mechanism. PKCE <span>[<a href="#RFC7636" class="cite xref">RFC7636</a>]</span>, while required as a continuation binding for public clients by <a href="#authorization-endpoint-pkce" class="auto internal xref">Section 7.3</a>, is not by itself sufficient for long-lived front-channel deferred codes: PKCE binds the client instance that originated the request, but a stolen browser session retaining access to the original client instance can complete continuation. Sender-constraining the deferred code itself defends against this case.<a href="#section-15.7-8" class="pilcrow">¶</a></p>
+<p id="section-15.7-9">Authorization servers <span class="bcp14">SHOULD</span> bind deferred processing state created from an authorization endpoint originating request to enough device or session context to detect when continuation requests arrive from a context inconsistent with the originating request. Inconsistent context includes a different network origin, a different user-agent fingerprint, or other deployment-specific signals available to the authorization server. Detection of inconsistent continuation context is not by itself grounds for rejection (legitimate cross-device flows can produce inconsistent context), but <span class="bcp14">SHOULD</span> be reported as a security event for monitoring and <span class="bcp14">MAY</span> trigger additional risk-based controls defined by local policy or higher-layer profiles.<a href="#section-15.7-9" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="interaction-uri-protection">
@@ -3100,13 +3105,30 @@ assertion=eyJhbGciOi...
 <p id="section-15.10-3">Authorization servers <span class="bcp14">MAY</span> increase the <code>interval</code> value when clients poll too frequently.<a href="#section-15.10-3" class="pilcrow">¶</a></p>
 </section>
 </div>
-<div id="deferred-processing-lifetime">
+<div id="lifetime-considerations">
 <section id="section-15.11">
         <h3 id="name-deferred-processing-lifetim">
 <a href="#section-15.11" class="section-number selfRef">15.11. </a><a href="#name-deferred-processing-lifetim" class="section-name selfRef">Deferred Processing Lifetime</a>
         </h3>
 <p id="section-15.11-1">Authorization servers <span class="bcp14">SHOULD</span> limit deferred processing lifetime and invalidate expired deferred codes.<a href="#section-15.11-1" class="pilcrow">¶</a></p>
-<p id="section-15.11-2">Long-lived deferred processing state increases replay risk and can retain sensitive request context. Authorization servers <span class="bcp14">SHOULD</span> choose lifetimes that are no longer than necessary for the expected asynchronous processing or interaction. Unless a higher-layer profile defines stronger controls, deferred code lifetimes <span class="bcp14">SHOULD</span> be measured in minutes. Authorization servers <span class="bcp14">SHOULD NOT</span> use lifetimes measured in hours or days without sender-constraining, one-time-use deferred codes, explicit user or administrator approval semantics, and operational monitoring.<a href="#section-15.11-2" class="pilcrow">¶</a></p>
+<p id="section-15.11-2">Long-lived deferred processing state increases replay risk, can retain sensitive request context, and increases the likelihood that completion will evaluate against assumptions that have changed since the originating request, for example policy updates, attestation expiry, certificate revocation, or account state changes. Authorization servers <span class="bcp14">SHOULD</span> choose lifetimes that are no longer than necessary for the expected asynchronous processing or interaction.<a href="#section-15.11-2" class="pilcrow">¶</a></p>
+<p id="section-15.11-3">For asynchronous policy evaluation, attestation validation, and out-of-band human-in-the-loop approval delivered through push notification, in-app inbox, or similar channels with sub-hour resolution, deferred code lifetimes <span class="bcp14">SHOULD</span> be measured in minutes.<a href="#section-15.11-3" class="pilcrow">¶</a></p>
+<p id="section-15.11-4">Long-lived deferred processing state, measured in hours or days, is appropriate for use cases including enterprise governance approval workflows, identity verification involving document submission, and autonomous-agent authorization requests pending human review. Authorization servers <span class="bcp14">MAY</span> use such lifetimes when all of the following controls are in place:<a href="#section-15.11-4" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-15.11-5.1">
+            <p id="section-15.11-5.1.1">sender-constraining of the deferred code through DPoP <span>[<a href="#RFC9449" class="cite xref">RFC9449</a>]</span>, mutual-TLS client certificate binding <span>[<a href="#RFC8705" class="cite xref">RFC8705</a>]</span>, or an equivalent mechanism;<a href="#section-15.11-5.1.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-15.11-5.2">
+            <p id="section-15.11-5.2.1">one-time-use deferred codes, with rotation on each continuation response that does not complete the request;<a href="#section-15.11-5.2.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-15.11-5.3">
+            <p id="section-15.11-5.3.1">an explicit user or administrator approval semantic that justifies the lifetime, such that the deferred state corresponds to a real stakeholder decision rather than a passive timeout;<a href="#section-15.11-5.3.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-15.11-5.4">
+            <p id="section-15.11-5.4.1">operational monitoring of long-lived deferred state, including detection of replay, code rotation lag, and unusual completion patterns.<a href="#section-15.11-5.4.1" class="pilcrow">¶</a></p>
+</li>
+        </ul>
+<p id="section-15.11-6">Authorization servers using long-lived deferred codes <span class="bcp14">SHOULD</span> apply protections equivalent to those required for refresh tokens by <span>[<a href="#RFC9700" class="cite xref">RFC9700</a>]</span> and <span class="bcp14">SHOULD</span> re-evaluate authorization-relevant inputs (policy, attestation, account state) at completion time rather than relying solely on the snapshot captured when deferred processing state was created.<a href="#section-15.11-6" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="authorization-scope-stability">
@@ -3150,8 +3172,9 @@ assertion=eyJhbGciOi...
 <a href="#section-15.16" class="section-number selfRef">15.16. </a><a href="#name-notification-endpoint-prote" class="section-name selfRef">Notification Endpoint Protection</a>
         </h3>
 <p id="section-15.16-1">The notification endpoint registered by a client is dereferenced by the authorization server and is therefore a server-side request forgery (SSRF) attack surface.<a href="#section-15.16-1" class="pilcrow">¶</a></p>
-<p id="section-15.16-2">Authorization servers <span class="bcp14">MUST</span> validate registered notification endpoint URLs at registration time and prior to each delivery. Authorization servers <span class="bcp14">SHOULD</span> reject endpoints whose host components resolve to loopback, link-local, multicast, broadcast, or other non-public addresses unless an explicit deployment policy permits internal destinations. Authorization servers <span class="bcp14">MUST NOT</span> follow HTTP redirects from the notification endpoint.<a href="#section-15.16-2" class="pilcrow">¶</a></p>
-<p id="section-15.16-3">The notification endpoint is publicly reachable and receives POST requests from the public internet. Clients <span class="bcp14">MUST</span> validate the inbound bearer credential against the most recent <code>notification_token</code> value before treating the notification as authentic. Clients <span class="bcp14">SHOULD</span> apply rate limiting to the notification endpoint to mitigate abuse.<a href="#section-15.16-3" class="pilcrow">¶</a></p>
+<p id="section-15.16-2">Authorization servers <span class="bcp14">MUST</span> validate registered notification endpoint URLs at registration time and prior to each delivery. Authorization servers <span class="bcp14">MUST</span> reject endpoints whose host components resolve to loopback, link-local, multicast, broadcast, or other non-public addresses. Higher-layer profiles or explicit deployment policy <span class="bcp14">MAY</span> permit internal destinations, but the base specification requires public destinations. Authorization servers <span class="bcp14">MUST NOT</span> follow HTTP redirects from the notification endpoint.<a href="#section-15.16-2" class="pilcrow">¶</a></p>
+<p id="section-15.16-3">Authorization servers <span class="bcp14">SHOULD</span> apply rate limits to outgoing notifications, both per deferred processing state (to prevent a runaway state-transition loop from producing many notifications) and per registered notification endpoint (to bound the load placed on any single client endpoint). Outgoing rate-limit enforcement complements the client-side rate limit required below.<a href="#section-15.16-3" class="pilcrow">¶</a></p>
+<p id="section-15.16-4">The notification endpoint is publicly reachable and receives POST requests from the public internet. Clients <span class="bcp14">MUST</span> validate the inbound bearer credential against the most recent <code>notification_token</code> value before treating the notification as authentic. Clients <span class="bcp14">SHOULD</span> apply rate limiting to the notification endpoint to mitigate abuse.<a href="#section-15.16-4" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="notification-token-protection">
@@ -3170,7 +3193,8 @@ assertion=eyJhbGciOi...
 <a href="#section-15.18" class="section-number selfRef">15.18. </a><a href="#name-notification-information-le" class="section-name selfRef">Notification Information Leakage</a>
         </h3>
 <p id="section-15.18-1">The notification payload conveys only the affected <code>deferred_code</code>. Authorization servers <span class="bcp14">MUST NOT</span> include access tokens, identity claims, attestation outcomes, policy results, subject identifiers, or other state in the notification body or headers.<a href="#section-15.18-1" class="pilcrow">¶</a></p>
-<p id="section-15.18-2">Authorization servers <span class="bcp14">SHOULD</span> avoid using notification timing or delivery patterns to reveal sensitive information about deferred processing state, consistent with the oracle resistance requirements above.<a href="#section-15.18-2" class="pilcrow">¶</a></p>
+<p id="section-15.18-2">Notification timing is observable to anyone with access to the client's notification endpoint traffic, including shared hosting infrastructure, CDN access logs, operational dashboards, and any intermediaries between the authorization server and the client endpoint. The time between deferral and notification, the time between notifications, and the absence of expected notifications all leak information about deferred processing state, including approval latency, attestation evaluation duration, manager-review wait time, and policy evaluation cost.<a href="#section-15.18-2" class="pilcrow">¶</a></p>
+<p id="section-15.18-3">Authorization servers <span class="bcp14">SHOULD</span> avoid using notification timing or delivery patterns that would reveal sensitive information about deferred processing state, consistent with the oracle resistance requirements above. Where timing observability is a material concern, authorization servers <span class="bcp14">SHOULD</span> apply jitter to notification delivery, deliver notifications on a coarse-grained schedule rather than on every state transition, or rely on polling without notifications.<a href="#section-15.18-3" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="privacy-considerations">

@@ -3,9 +3,9 @@
 
 
 Web Authorization Protocol                                 K. McGuinness
-Internet-Draft                                               28 May 2026
+Internet-Draft                                               30 May 2026
 Intended status: Standards Track                                        
-Expires: 29 November 2026
+Expires: 1 December 2026
 
 
                    OAuth 2.0 Deferred Code Processing
@@ -60,7 +60,7 @@ Status of This Memo
    time.  It is inappropriate to use Internet-Drafts as reference
    material or to cite them other than as "work in progress."
 
-   This Internet-Draft will expire on 29 November 2026.
+   This Internet-Draft will expire on 1 December 2026.
 
 Copyright Notice
 
@@ -818,12 +818,18 @@ Table of Contents
    by redirecting the user agent to the client's redirection endpoint
    using the same redirect mechanism it would use for a synchronous
    authorization response, including any selected response_mode such as
-   query, fragment, or form_post.  When response_mode=fragment is in
-   effect, the deferred_code and associated parameters are delivered in
-   the URL fragment component rather than the query component;
-   authorization servers SHOULD consider the implications for in-browser
-   exposure when deciding whether deferral is appropriate for fragment-
-   mode flows.
+   query or form_post.
+
+   Authorization servers SHOULD NOT return deferred authorization
+   responses with response_mode=fragment.  The fragment component is
+   accessible to any script running on the redirect page, including
+   third-party scripts and browser extensions, exposing the
+   deferred_code to a substantially broader attack surface than the
+   query or form_post channels and creating a risk class equivalent to
+   the implicit-flow access token exposure that motivated deprecation of
+   the implicit grant in [RFC9700].  Higher-layer profiles MAY permit
+   fragment mode for specific use cases that justify the exposure with
+   additional controls.
 
    The response includes the following parameters:
 
@@ -2091,6 +2097,45 @@ Table of Contents
    subject to the same protections as an interaction_uri returned in a
    deferred processing response.
 
+   Authorization servers SHOULD apply more conservative lifetime
+   defaults to deferred codes returned through the authorization
+   endpoint redirect than to deferred codes returned only at the token
+   endpoint, because the redirect channel exposes the value to browser
+   history, server logs, and referer headers that the token endpoint
+   does not.
+
+   Authorization servers SHOULD treat deferred codes returned through
+   the authorization endpoint redirect as one-time-use even at short
+   lifetimes, rotating the value on the first continuation response that
+   does not complete the request.  The redirect channel exposes the
+   initially returned value to multiple log surfaces; the value rotated
+   on first continuation arrives only at the token endpoint and is not
+   subject to the same disclosure surface.
+
+   When a deferred code returned through the authorization endpoint
+   redirect has a lifetime measured in hours or days under the rules of
+   Section 15.11, the authorization server MUST sender-constrain the
+   deferred code through DPoP [RFC9449], mutual-TLS client certificate
+   binding [RFC8705], or an equivalent mechanism.  PKCE [RFC7636], while
+   required as a continuation binding for public clients by Section 7.3,
+   is not by itself sufficient for long-lived front-channel deferred
+   codes: PKCE binds the client instance that originated the request,
+   but a stolen browser session retaining access to the original client
+   instance can complete continuation.  Sender-constraining the deferred
+   code itself defends against this case.
+
+   Authorization servers SHOULD bind deferred processing state created
+   from an authorization endpoint originating request to enough device
+   or session context to detect when continuation requests arrive from a
+   context inconsistent with the originating request.  Inconsistent
+   context includes a different network origin, a different user-agent
+   fingerprint, or other deployment-specific signals available to the
+   authorization server.  Detection of inconsistent continuation context
+   is not by itself grounds for rejection (legitimate cross-device flows
+   can produce inconsistent context), but SHOULD be reported as a
+   security event for monitoring and MAY trigger additional risk-based
+   controls defined by local policy or higher-layer profiles.
+
 15.8.  Interaction URI Protection
 
    Interaction URIs MUST use HTTPS.
@@ -2141,15 +2186,47 @@ Table of Contents
    Authorization servers SHOULD limit deferred processing lifetime and
    invalidate expired deferred codes.
 
-   Long-lived deferred processing state increases replay risk and can
-   retain sensitive request context.  Authorization servers SHOULD
-   choose lifetimes that are no longer than necessary for the expected
-   asynchronous processing or interaction.  Unless a higher-layer
-   profile defines stronger controls, deferred code lifetimes SHOULD be
-   measured in minutes.  Authorization servers SHOULD NOT use lifetimes
-   measured in hours or days without sender-constraining, one-time-use
-   deferred codes, explicit user or administrator approval semantics,
-   and operational monitoring.
+   Long-lived deferred processing state increases replay risk, can
+   retain sensitive request context, and increases the likelihood that
+   completion will evaluate against assumptions that have changed since
+   the originating request, for example policy updates, attestation
+   expiry, certificate revocation, or account state changes.
+   Authorization servers SHOULD choose lifetimes that are no longer than
+   necessary for the expected asynchronous processing or interaction.
+
+   For asynchronous policy evaluation, attestation validation, and out-
+   of-band human-in-the-loop approval delivered through push
+   notification, in-app inbox, or similar channels with sub-hour
+   resolution, deferred code lifetimes SHOULD be measured in minutes.
+
+   Long-lived deferred processing state, measured in hours or days, is
+   appropriate for use cases including enterprise governance approval
+   workflows, identity verification involving document submission, and
+   autonomous-agent authorization requests pending human review.
+   Authorization servers MAY use such lifetimes when all of the
+   following controls are in place:
+
+   *  sender-constraining of the deferred code through DPoP [RFC9449],
+      mutual-TLS client certificate binding [RFC8705], or an equivalent
+      mechanism;
+
+   *  one-time-use deferred codes, with rotation on each continuation
+      response that does not complete the request;
+
+   *  an explicit user or administrator approval semantic that justifies
+      the lifetime, such that the deferred state corresponds to a real
+      stakeholder decision rather than a passive timeout;
+
+   *  operational monitoring of long-lived deferred state, including
+      detection of replay, code rotation lag, and unusual completion
+      patterns.
+
+   Authorization servers using long-lived deferred codes SHOULD apply
+   protections equivalent to those required for refresh tokens by
+   [RFC9700] and SHOULD re-evaluate authorization-relevant inputs
+   (policy, attestation, account state) at completion time rather than
+   relying solely on the snapshot captured when deferred processing
+   state was created.
 
 15.12.  Authorization Scope Stability
 
@@ -2207,11 +2284,19 @@ Table of Contents
 
    Authorization servers MUST validate registered notification endpoint
    URLs at registration time and prior to each delivery.  Authorization
-   servers SHOULD reject endpoints whose host components resolve to
+   servers MUST reject endpoints whose host components resolve to
    loopback, link-local, multicast, broadcast, or other non-public
-   addresses unless an explicit deployment policy permits internal
-   destinations.  Authorization servers MUST NOT follow HTTP redirects
-   from the notification endpoint.
+   addresses.  Higher-layer profiles or explicit deployment policy MAY
+   permit internal destinations, but the base specification requires
+   public destinations.  Authorization servers MUST NOT follow HTTP
+   redirects from the notification endpoint.
+
+   Authorization servers SHOULD apply rate limits to outgoing
+   notifications, both per deferred processing state (to prevent a
+   runaway state-transition loop from producing many notifications) and
+   per registered notification endpoint (to bound the load placed on any
+   single client endpoint).  Outgoing rate-limit enforcement complements
+   the client-side rate limit required below.
 
    The notification endpoint is publicly reachable and receives POST
    requests from the public internet.  Clients MUST validate the inbound
@@ -2241,10 +2326,24 @@ Table of Contents
    claims, attestation outcomes, policy results, subject identifiers, or
    other state in the notification body or headers.
 
+   Notification timing is observable to anyone with access to the
+   client's notification endpoint traffic, including shared hosting
+   infrastructure, CDN access logs, operational dashboards, and any
+   intermediaries between the authorization server and the client
+   endpoint.  The time between deferral and notification, the time
+   between notifications, and the absence of expected notifications all
+   leak information about deferred processing state, including approval
+   latency, attestation evaluation duration, manager-review wait time,
+   and policy evaluation cost.
+
    Authorization servers SHOULD avoid using notification timing or
-   delivery patterns to reveal sensitive information about deferred
-   processing state, consistent with the oracle resistance requirements
-   above.
+   delivery patterns that would reveal sensitive information about
+   deferred processing state, consistent with the oracle resistance
+   requirements above.  Where timing observability is a material
+   concern, authorization servers SHOULD apply jitter to notification
+   delivery, deliver notifications on a coarse-grained schedule rather
+   than on every state transition, or rely on polling without
+   notifications.
 
 15.19.  Privacy Considerations
 
