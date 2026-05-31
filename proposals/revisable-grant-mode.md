@@ -1,14 +1,20 @@
-# Revisable Grant Mode for OAuth Deferred Code Processing
+# Revisable Deferred Authorization for OAuth Asynchronous Request Processing
 
 ## Status
 
-Proposal. This document extends [draft-mcguinness-oauth-deferred-code-processing](../draft-mcguinness-oauth-deferred-code-processing.md) and is presented to validate the extensibility model of that specification. It is not itself on a publication path; a companion specification (e.g., Mission-Bound OAuth) would carry the final text.
+Proposal. This document defines a higher-layer profile of [draft-mcguinness-oauth-deferred-code-processing](../draft-mcguinness-oauth-deferred-code-processing.md). It is presented to validate that specification's extension model for request revision, externally-observable states, and profile-defined out-of-band mechanisms. It is not itself on a publication path; a companion specification (e.g., Mission-Bound OAuth) would carry the final text.
 
 ## Abstract
 
-This proposal defines the `revisable` value for the `grant_mode` parameter, the Revision Required abstract state, and the clarification handshake mechanism. It allows an authorization server, when it determines that an originating request cannot be granted as stated but a narrowed version could be, to invite the client to push a narrowed revision via Pushed Authorization Requests (RFC 9126) and then continue polling with the existing deferred-code continuation mechanism rather than abandoning the request outright.
+This proposal defines a revisable deferred authorization profile for OAuth asynchronous request processing. The profile consists of the `revisable` value for the `grant_mode` parameter, the Revision Required externally-observable state, the `revision_required` token endpoint error, clarification response parameters, and a Pushed Authorization Requests (PAR) based revision submission mechanism. It allows an authorization server, when it determines that an originating request cannot be granted as stated but a narrowed version could be, to invite the client to push a narrowed revision and then continue polling with the existing deferred-code continuation mechanism rather than abandoning the request outright.
 
 The motivating use case is Mission-Bound OAuth, where an autonomous agent proposes a "mission" (set of permissions and authorization details) and a human reviewer may approve a narrowed subset. Without this mechanism, the agent must abandon the original request and submit a new one, losing the deferred processing state and any preceding work.
+
+## Scope
+
+This proposal is intentionally narrow. It defines the protocol machinery required to revise an existing deferred processing state by narrowing the originating request. It does not define mission semantics, consent rendering, reviewer user experience, policy language, or authorization-server decision criteria.
+
+The proposal is also not a general request-editing facility. Revisions can only reduce or clarify the originating request according to profile-defined comparison rules. The deferred code grant type remains unchanged, and continuation requests never carry revised authorization parameters.
 
 ## Relation to the Base Specification
 
@@ -27,7 +33,7 @@ This proposal also touches the following IANA registries outside the base spec's
 - OAuth Parameters Registry: registers `clarification_handle`, `rejected_scope`, and `rejected_authorization_details`
 - Pushed Authorization Requests (RFC 9126) is the profile-chosen submission mechanism
 
-The base specification's §Continuation Request includes a generic carve-out permitting "higher-layer profiles MAY define mechanisms outside the deferred code grant type itself for updating the parameters preserved in the deferred processing state" subject to a narrowing-only constraint. This proposal exercises that carve-out by specifying PAR as the concrete submission mechanism, the `clarification_handle` as the binding between PAR submissions and the deferred processing state, and the narrowing comparison rules per request parameter.
+The base specification's §Continuation Request includes a generic carve-out permitting "higher-layer profiles MAY define mechanisms outside the deferred code grant type itself for updating the parameters preserved in the deferred processing state" subject to a narrowing-only constraint. This proposal exercises that carve-out by specifying PAR as the concrete submission mechanism, the `clarification_handle` as the binding between PAR submissions and the deferred processing state, and the required narrowing checks for revised request parameters.
 
 ## Defined Value
 
@@ -120,7 +126,7 @@ The authorization server:
 7. Updates the deferred processing state with the revised parameters
 8. Transitions the state back to Pending (or Interaction Required, if the AS re-presents the narrowed request to the same reviewer)
 
-If validation succeeds, the PAR response is a standard PAR success response. The returned `request_uri` exists only because the revision is submitted through the PAR endpoint; it is not a new continuation handle, and the client MUST NOT use it to initiate a separate authorization transaction. The `deferred_code` remains the continuation handle. The client continues polling the original `deferred_code` at the token endpoint to observe the re-reviewed state.
+If validation succeeds, the PAR response is a standard PAR success response. The returned `request_uri` exists only because the revision is submitted through the PAR endpoint; it is not a new continuation handle, and the client MUST NOT use it to initiate a separate authorization transaction. The current `deferred_code` remains the continuation handle. The client continues polling that `deferred_code` at the token endpoint to observe the re-reviewed state.
 
 If validation fails (e.g., revision attempts to expand authorization), the PAR endpoint returns an appropriate PAR error response (`invalid_request` or a profile-defined error), and the deferred processing state remains in the Revision Required condition. Because each `clarification_handle` is single-use, a retry requires the client to obtain a new `clarification_handle` from a subsequent continuation response. The authorization server SHOULD issue a new handle in the next `revision_required` response unless local policy terminates the deferred request. The client MAY retry with a different revision only after receiving a new handle.
 
@@ -174,7 +180,7 @@ Pragma: no-cache
 
 {
   "error": "revision_required",
-  "deferred_code": "dc_7M2R4",
+  "deferred_code": "dc_9P2K7",
   "clarification_handle": "ch_4QFJ3P9",
   "rejected_scope": "crm:write",
   "expires_in": 420,
@@ -213,7 +219,7 @@ Cache-Control: no-store
 }
 ~~~
 
-The client discards the returned `request_uri` for purposes of deferred processing. It continues polling the token endpoint with the current deferred code and the retained interval:
+The client discards the returned `request_uri` for purposes of deferred processing. It continues polling the token endpoint with the current deferred code and the retained interval. Because PKCE verification occurred on the first continuation request, the `code_verifier` is not repeated:
 
 ~~~ http
 POST /token HTTP/1.1
@@ -221,7 +227,8 @@ Host: as.example.com
 Content-Type: application/x-www-form-urlencoded
 
 grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Adeferred_code&
-deferred_code=dc_7M2R4
+deferred_code=dc_9P2K7&
+client_id=s6BhdRkqt3
 ~~~
 
 If the narrowed request is approved, the authorization server completes the existing deferred processing state and returns a token response:
@@ -275,7 +282,7 @@ If the authorization server determines that no acceptable narrowed revision rema
 - **Narrowing only.** Revisions MUST NOT expand the originating request. Authorization servers MUST validate narrowing per parameter (scope subset, resource subset, audience subset, authorization_details subset), allowing unchanged dimensions only when they remain no broader than the originating request. The narrowing comparison rules for `authorization_details` follow the inclusion semantics defined by RFC 9396 §6.
 - **Clarification handle is single-use.** Each `clarification_handle` value MUST be invalidated after one PAR submission, whether the submission succeeded or failed validation. A new clarification handle is issued on subsequent Revision Required transitions.
 - **Clarification handle lifetime.** The `clarification_handle` lifetime MUST NOT exceed the remaining lifetime of the deferred code. Authorization servers SHOULD use substantially shorter lifetimes when the handle is exposed to agent orchestration layers or other components outside the OAuth client.
-- **Sender-constraining continuity.** The clarification handle MUST be sender-constrained equivalently to the deferred_code. An attacker that obtains the handle without the corresponding DPoP key or mTLS certificate MUST NOT be able to push a revision.
+- **Sender-constraining continuity.** The clarification handle MUST be sender-constrained equivalently to the `deferred_code`. An attacker that obtains the handle without the corresponding DPoP key or mTLS certificate MUST NOT be able to push a revision.
 - **Request URI misuse.** The PAR `request_uri` returned after a successful revision submission MUST NOT become a second path to authorization. Clients discard it, and authorization servers SHOULD reject attempts to use it at the authorization endpoint unless a profile explicitly defines separate-flow behavior.
 - **Policy disclosure.** The `rejected_scope` and `rejected_authorization_details` parameters can reveal policy boundaries, resource existence, approval rules, or reviewer decisions. Authorization servers SHOULD return only the minimum refusal detail needed for the client to construct a narrowed request and SHOULD omit these parameters when policy confidentiality is more important than automated revision.
 - **Revision cycle bounding.** Authorization servers SHOULD bound the number of Revision Required → Pending transitions per deferred processing state (suggested: 3-5). Excessive cycles SHOULD be logged as a security event.

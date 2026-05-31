@@ -1,6 +1,6 @@
 # Proposals
 
-This directory contains profile/extension proposals that build on [draft-mcguinness-oauth-deferred-code-processing](../draft-mcguinness-oauth-deferred-code-processing.md). They exist to validate that the base specification's extension surfaces are sufficient to support real downstream profiles without modification.
+This directory contains profile/extension proposals that build on [draft-mcguinness-oauth-deferred-code-processing](../draft-mcguinness-oauth-deferred-code-processing.md), currently titled "OAuth 2.0 Asynchronous Request Processing". They exist to validate that the base specification's extension surfaces are sufficient to support real downstream profiles without modification.
 
 These proposals are not on a publication path. They are exercises that demonstrate the extensibility model by exercising every declared extension surface of the base spec.
 
@@ -8,16 +8,17 @@ These proposals are not on a publication path. They are exercises that demonstra
 
 ### [interim-grant-mode.md](./interim-grant-mode.md)
 
-Defines `grant_mode=interim`. Allows the authorization server to return an initial response artifact (typically an OpenID Connect ID Token with currently-verified claims) together with a `deferred_code` for continuation, replacing the artifact with the complete version when extended verification finishes.
+Defines `grant_mode=interim` and interim replacement semantics for the base specification's partial completion wire shape. Allows the authorization server to return an initial response artifact (typically an OpenID Connect ID Token with currently-verified claims) together with a `deferred_code` for continuation, replacing the artifact with the complete version when extended verification finishes.
 
 Exercises:
 - OAuth Grant Mode Values Registry (registration)
-- §Higher-Layer Extension Points (additional response parameters in the 200 OK token response)
+- §Partial Completion (profile-defined artifact replacement semantics)
+- §Higher-Layer Extension Points (profile-defined marker for the interim artifact)
 - Continuation polling state machine (reused unchanged)
 
 ### [revisable-grant-mode.md](./revisable-grant-mode.md)
 
-Defines `grant_mode=revisable`, the Revision Required abstract state, and a PAR-based clarification handshake mechanism. Allows the authorization server to invite a client to push a narrowed revision of the originating request via Pushed Authorization Requests when the original cannot be granted as stated but a narrowed version could be.
+Defines `grant_mode=revisable`, the Revision Required externally-observable state, and a PAR-based clarification handshake mechanism. Allows the authorization server to invite a client to push a narrowed revision of the originating request via Pushed Authorization Requests when the original cannot be granted as stated but a narrowed version could be.
 
 Exercises:
 - OAuth Grant Mode Values Registry (registration)

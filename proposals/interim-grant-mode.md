@@ -1,14 +1,20 @@
-# Interim Grant Mode for OAuth Deferred Code Processing
+# Interim Partial Completion for OAuth Asynchronous Request Processing
 
 ## Status
 
-Proposal. This document extends [draft-mcguinness-oauth-deferred-code-processing](../draft-mcguinness-oauth-deferred-code-processing.md) and is presented to validate the extensibility model of that specification. It is not itself on a publication path; a companion specification (e.g., an OpenID Connect profile) would carry the final text.
+Proposal. This document defines a higher-layer profile of [draft-mcguinness-oauth-deferred-code-processing](../draft-mcguinness-oauth-deferred-code-processing.md). It is presented to validate that specification's extension model for partial completion, grant mode registration, and continuation polling. It is not itself on a publication path; a companion specification (e.g., an OpenID Connect profile) would carry the final text.
 
 ## Abstract
 
-This proposal defines the `interim` value for the `grant_mode` parameter introduced by the base specification. The interim grant mode allows a client to accept a grant that includes an initial response artifact (typically an OpenID Connect ID Token populated with currently-verified claims) together with a `deferred_code` that the client uses to obtain the complete representation later, via the substrate's continuation polling mechanism.
+This proposal defines an interim partial-completion profile for OAuth asynchronous request processing. The profile consists of the `interim` value for the `grant_mode` parameter and replacement semantics for a partial response artifact returned together with a `deferred_code`. It allows a client to accept an initial response artifact (typically an OpenID Connect ID Token populated with currently-verified claims) and use the substrate's continuation polling mechanism to obtain the complete representation later.
 
 The motivating use case is OpenID Connect identity verification flows where document review can take hours or days but the OpenID Provider can return preliminary claims (verified email, name) immediately while extended verification proceeds asynchronously.
+
+## Scope
+
+This proposal is intentionally narrow. It defines interim replacement semantics on top of the base specification's partial completion wire shape. It does not define OpenID Connect claim verification policy, identity-proofing rules, the marker used to identify an interim artifact, or relying-party trust decisions.
+
+The proposal is not a general partial-issuance framework. Profiles that consume this proposal MUST define which artifacts can be issued on an interim basis, how the interim nature is marked, and how the interim artifact is invalidated or constrained after continuation completes unsuccessfully.
 
 ## Relation to the Base Specification
 
@@ -18,11 +24,11 @@ This proposal uses the following extension surfaces defined by the base spec:
 |---|---|
 | OAuth Grant Mode Values Registry (Specification Required policy) | Registers `interim` |
 | §Partial Completion | Defines the interim semantics on top of the partial completion wire shape (200 OK with issued artifact + `deferred_code` + `deferred_code_expires_in`) |
-| §Higher-Layer Extension Points: additional response parameters | Defines any profile-specific marker indicating interim status |
+| §Higher-Layer Extension Points: additional response parameters | Allows a consuming profile to define a profile-specific marker indicating interim status |
 | Notification mode | Signals when extended verification completes |
 
 This proposal does NOT require:
-- New abstract states (uses Pending only)
+- New externally-observable states (uses Pending only)
 - New error codes
 - Modifications to the continuation grant type
 - Modifications to the deferred code lifecycle, sender-constraining rules, or security model
@@ -31,6 +37,18 @@ This proposal does NOT require:
 
 **interim**
 : Client accepts an interim grant. The authorization server MAY return an initial response artifact populated with currently-available claims together with a `deferred_code` for continuation. When deferred processing completes, the continuation response returns the complete artifact, replacing the interim version.
+
+## Relationship to `grant_mode=deferred`
+
+The `interim` value authorizes the partial-completion behavior defined by this proposal. It does not by itself indicate that the client accepts full deferral with no immediately issued artifact.
+
+A client that accepts either an interim artifact or ordinary asynchronous deferral SHOULD send both values:
+
+~~~ text
+grant_mode=interim deferred
+~~~
+
+A request containing only `grant_mode=interim` allows the authorization server to return an interim partial-completion response. If the same request cannot produce an interim artifact and requires ordinary asynchronous processing, the authorization server MUST NOT infer support for full deferral from `interim` alone.
 
 ## Wire Shape
 
@@ -74,6 +92,7 @@ Interim response (verification in progress):
 HTTP/1.1 200 OK
 Content-Type: application/json
 Cache-Control: no-store
+Pragma: no-cache
 
 {
   "access_token": "SlAV32hkKG",
@@ -106,6 +125,7 @@ Polling response while verification continues:
 HTTP/1.1 400 Bad Request
 Content-Type: application/json
 Cache-Control: no-store
+Pragma: no-cache
 
 {
   "error": "authorization_pending",
@@ -121,6 +141,7 @@ Completion response (extended verification finished):
 HTTP/1.1 200 OK
 Content-Type: application/json
 Cache-Control: no-store
+Pragma: no-cache
 
 {
   "access_token": "9u1Zq7...",
@@ -157,7 +178,7 @@ This proposal demonstrates the base specification's extensibility model:
 
 1. **Single new value registered via the existing Specification Required policy** — no base spec change required.
 2. **State machine reused without modification** — interim flows use Pending and Complete states already defined by the base spec.
-3. **Wire shape provided by §Partial Completion** — the base spec defines the 200 OK + issued artifact + `deferred_code` + `deferred_code_expires_in` pattern; this proposal supplies the interim semantics (artifact replacement on completion, marker convention) on top of that pattern.
+3. **Wire shape provided by §Partial Completion** — the base spec defines the 200 OK + issued artifact + `deferred_code` + `deferred_code_expires_in` pattern; this proposal supplies the interim semantics (artifact replacement on completion and the requirement for a profile-defined marker convention) on top of that pattern.
 4. **Continuation grant type unchanged** — the client polls with the standard `urn:ietf:params:oauth:grant-type:deferred_code`.
 5. **Security model unchanged** — sender-constraining, lifetime, replay, and oracle-resistance rules apply as defined in the base spec.
 
