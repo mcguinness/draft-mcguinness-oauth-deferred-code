@@ -38,6 +38,7 @@ normative:
   RFC8693:
   RFC8705:
   RFC8707:
+  RFC9126:
   RFC9396:
   RFC9449:
   RFC9700:
@@ -299,6 +300,8 @@ Invalid:
 
 The authorization server MAY transition between Pending and Interaction Required more than once. Complete, Denied, Expired, and Invalid are terminal from the client's perspective.
 
+Higher-layer profiles MAY define additional externally-observable states that extend the lifecycle described above. For example, a profile MAY define a Revision Required state in which the authorization server invites the client to push a revised (narrowed) version of the originating request through Pushed Authorization Requests {{RFC9126}} or another profile-defined mechanism. Profile-defined states MUST be mapped to token endpoint responses that are distinguishable from the states defined in this specification (typically via a profile-defined `error` value in the token endpoint error response), MUST NOT alter the security or binding requirements applicable to the deferred processing state, and MUST NOT allow the resulting authorization to expand beyond what the originating request expressed.
+
 # Deferred Code Semantics {#deferred-code-semantics}
 
 A `deferred_code` is an opaque reference that enables the client to continue processing of a previously submitted originating request whose evaluation has been deferred by the authorization server. The originating request is either a token request submitted to the token endpoint or an authorization request submitted to the authorization endpoint. The `deferred_code` is the client-visible handle through which the client observes and advances the deferred processing state; it is not itself the state and does not by itself convey processing status or result data.
@@ -389,9 +392,13 @@ Higher-layer profiles can build on this specification by defining:
 * additional response parameters for interaction or transaction context,
 * completion criteria for external authentication, approval, consent, or review,
 * additional notification mechanisms that reduce or eliminate client polling,
+* additional externally-observable states extending the abstract state lifecycle defined in this specification,
+* additional response parameters carrying handles or references used by profile-defined out-of-band mechanisms, including but not limited to revision flows that update the deferred processing state via {{RFC9126}} Pushed Authorization Requests,
 * constraints on which grant types, clients, or resources can use deferred processing.
 
 Higher-layer profiles MUST NOT require clients to interpret the `deferred_code` value.
+
+Higher-layer profiles that define new response parameters, request parameters, error codes, or `grant_mode` values SHOULD register them in the appropriate IANA registry (OAuth Parameters Registry, OAuth Extensions Error Registry, or OAuth Grant Mode Values Registry as applicable). Profile-defined parameter and value names SHOULD avoid collisions with existing OAuth parameter and value names; profiles MAY use a profile-specific prefix or namespace convention to reduce collision risk. When multiple profiles define response parameters that may appear in the same response, profiles SHOULD specify how their parameters compose with parameters defined by other profiles.
 
 # Grant Mode Parameter {#grant-mode}
 
@@ -661,6 +668,8 @@ Clients MUST treat the value as opaque.
 
 The authorization server MUST NOT encode authorization, identity, or policy decisions in a way that requires client interpretation of the value.
 
+When a `deferred_code` is returned in a success response together with an issued artifact, the response MUST also include `deferred_code_expires_in` as defined in {{deferred-code-expires-in-parameter}}.
+
 ## Interaction URI Parameter {#interaction-uri}
 
 The `interaction_uri` parameter identifies a location where required external interaction can occur.
@@ -692,6 +701,47 @@ In a deferred processing response and in continuation responses returning `autho
 In a successful access token response returned upon deferred completion, the `expires_in` parameter retains the meaning defined for the original grant type and describes the lifetime of the issued access token.
 
 Clients MUST NOT infer the lifetime of a deferred code from the lifetime of any access token that might be issued upon successful completion.
+
+## Deferred Code Expires In Parameter {#deferred-code-expires-in-parameter}
+
+The `deferred_code_expires_in` parameter indicates the remaining lifetime of the deferred code in seconds when a response includes both an issued artifact and a `deferred_code`.
+
+In a partial completion response as defined in {{partial-completion}}, `deferred_code_expires_in` is REQUIRED. The `expires_in` parameter, if present, retains the meaning defined by the originating endpoint or grant type and MUST NOT be used to describe the lifetime of the deferred code in a partial completion response.
+
+# Partial Completion {#partial-completion}
+
+In addition to full synchronous completion (a standard token response or authorization response with no `deferred_code`) and full deferral (a deferred processing response or deferred authorization response that issues no synchronous artifact), the authorization server MAY produce a *partial completion*: a successful response that includes both an issued artifact and a `deferred_code` for continuation.
+
+In a partial completion response, the `deferred_code` refers to deferred processing of the remaining (un-issued) portion of the originating request, not to the issued artifact itself. The issued artifact is fully issued and valid according to its own semantics; the `deferred_code` enables the client to continue processing for the portion that has not yet been issued.
+
+Partial completion is appropriate when the authorization server can immediately issue an artifact reflecting currently-available authorization (for example, a subset of requested scopes or a representation populated with currently-available claims) and the remainder of the authorization is expected to be resolvable asynchronously through the deferred code continuation mechanism.
+
+A profile MUST define the semantics of partial completion before its use, including which artifacts may be issued partially, what "partial" means for the artifacts in question, and how a continuation that completes successfully relates to the previously issued artifact (replacement, supplement, or upgrade). This specification does not define those semantics; it defines only the wire shape and the relationship to the deferred code continuation mechanism.
+
+## Wire Shape
+
+A partial completion response uses the success response form defined by the originating endpoint:
+
+* For token endpoint originating requests: a standard 200 OK access token response as defined by {{RFC6749}}, including the issued artifact (e.g., `access_token`, `id_token`) and any other parameters appropriate to the originating grant type, plus `deferred_code` and `deferred_code_expires_in` parameters.
+* For authorization endpoint originating requests: the standard authorization response redirect as defined by {{RFC6749}}, including the issued artifact (e.g., `code` or `id_token` per the originating response type) and any other authorization response parameters, plus `deferred_code` and `deferred_code_expires_in` parameters conveyed in the same redirect channel as the deferred authorization response defined in {{authorization-endpoint-extensions}}.
+
+The presence of `deferred_code` in a success response signals that continuation is available; absence of `deferred_code` signals full synchronous completion. Profiles MAY define additional response parameters to mark the issued artifact as partial.
+
+When a partial completion response includes an artifact that has its own subsequent processing step, such as an authorization code that can be redeemed at the token endpoint, the profile MUST define the ordering and interaction between that processing step and deferred-code continuation. In particular, the profile MUST specify whether the artifact can be redeemed immediately, whether redemption is blocked until continuation completes, and how the authorization server prevents the artifact and deferred-code continuation from producing broader authorization than the originating request allowed.
+
+## Continuation
+
+The client uses the issued artifact immediately according to the originating grant type's semantics. The client also polls the deferred_code at the token endpoint using the deferred code grant type defined in {{continuation-request}}.
+
+When deferred processing completes successfully, the continuation response returns a 200 OK access token response carrying the upgraded artifact. Profiles MUST define whether the upgraded artifact replaces the partial artifact (rendering the partial one invalid), supplements it (both remain valid), or extends it (the partial artifact gains additional capabilities). When a partial artifact is replaced, the authorization server MUST invalidate the partial artifact no later than when the continuation response returns the upgraded artifact.
+
+The deferred_code lifecycle, sender-constraining requirements, security considerations, and notification semantics defined elsewhere in this specification apply unchanged to partial completion.
+
+## Applicability
+
+Partial completion is OPTIONAL. Authorization servers that support partial completion MUST do so only when a higher-layer profile defines the partial semantics. This specification does not define a default partial-completion behavior, and authorization servers MUST NOT issue partial completions outside the scope of a profile that defines them.
+
+Clients that do not understand a profile's partial-completion semantics MUST treat the response as if `deferred_code` were absent (i.e., use the issued artifact and ignore the continuation handle). Authorization servers SHOULD therefore use partial completion only with clients that have registered or otherwise signaled support for the relevant profile.
 
 # Deferred Code Grant Type
 
@@ -738,6 +788,8 @@ code_verifier:
 : REQUIRED on the first continuation request following a deferred authorization response when the originating authorization request included a `code_challenge` parameter, as defined in {{authorization-endpoint-pkce}}. MUST NOT be included on any other continuation request.
 
 The request MUST NOT include parameters that modify or replace parameters from the originating request, including `scope`, `resource` as defined by {{RFC8707}}, `audience`, `authorization_details` as defined by {{RFC9396}}, `redirect_uri`, `subject_token`, `actor_token`, `assertion`, or grant-type-specific parameters from the originating request. The authorization server MUST reject such requests with `invalid_request`. The `code_verifier` parameter is permitted on continuation requests only as defined above for authorization endpoint deferral.
+
+Higher-layer profiles MAY define mechanisms for revising the originating request that update the parameters preserved in the deferred processing state. Such mechanisms MUST be defined outside the deferred code grant type itself, through Pushed Authorization Requests {{RFC9126}} carrying a profile-defined handle bound to the deferred processing state, a profile-defined dedicated revision endpoint, or another profile-defined mechanism. The mechanism MUST enforce that revisions only narrow the originally requested authorization (subset of requested scopes, resources, audiences, and authorization details), never expanding it. The continuation grant type itself never carries revised parameters; revised parameters reach the deferred processing state through the profile-defined mechanism, and the continuation request continues to use the existing `deferred_code` to observe the updated state.
 
 If the originating request was made by an authenticated client, the continuation request MUST authenticate the same client. If the originating request was made by an unauthenticated client that included a `client_id`, the continuation request MUST include the same `client_id`. If the originating request used sender-constrained client authentication or proof-of-possession material, the authorization server MUST apply equivalent sender-constraining requirements to the continuation request.
 
@@ -978,6 +1030,8 @@ If an authorization server defers authorization code redemption, it MUST treat t
 
 PKCE verification, including comparison of the `code_verifier` against the previously stored `code_challenge` as defined by {{RFC7636}}, MUST occur during evaluation of the originating token request, before the authorization server creates deferred processing state. The `code_verifier` is consumed at that point and MUST NOT be re-presented on continuation requests, consistent with the prohibition on resubmitting originating request parameters in {{continuation-request}}. Continuation requests rely on the PKCE verification result preserved in deferred processing state. This rule applies to deferral of authorization code redemption at the token endpoint; the rules for authorization endpoint deferral are defined in {{authorization-endpoint-pkce}}.
 
+Partial completion as defined in {{partial-completion}} is applicable to the authorization code grant: the authorization server MAY issue a partial access token covering a subset of requested scopes together with a `deferred_code` for the upgrade.
+
 ## Refresh Token Grant
 
 An authorization server MAY require additional evaluation before issuing refreshed tokens.
@@ -986,17 +1040,23 @@ When refresh token rotation is used, the authorization server SHOULD rotate the 
 
 While deferred processing state exists for a refresh request, the authorization server MUST treat the original refresh token as suspended: it MUST NOT honor concurrent refresh requests using the same refresh token while a deferred refresh request derived from it is pending. The authorization server MUST prevent the original refresh token and the deferred processing state from together producing more tokens than a single successful synchronous refresh request would have produced.
 
+Partial completion as defined in {{partial-completion}} is NOT applicable to the refresh token grant. The refresh operation produces a replacement access token that supersedes the existing one; issuing a partial replacement followed by an upgrade would conflict with the refresh token rotation semantics described above.
+
 ## Client Credentials Grant
 
 An authorization server MAY defer issuance pending workload attestation, enterprise policy evaluation, or asynchronous risk analysis.
 
 For client credentials requests, deferred processing state MUST remain bound to the authenticated client and any sender-constraining or proof-of-possession material used by the originating request.
 
+Partial completion as defined in {{partial-completion}} is applicable to the client credentials grant: the authorization server MAY issue a partial access token covering a subset of requested scopes or resources together with a `deferred_code` for the upgrade.
+
 ## Token Exchange
 
 An authorization server MAY defer processing during token exchange evaluation as defined by {{RFC8693}}.
 
 For token exchange requests, deferred processing state MUST preserve the original `subject_token`, `subject_token_type`, `actor_token`, `actor_token_type`, `requested_token_type`, the requested `resource` values defined by {{RFC8707}}, the requested `audience` values, and `scope` used to evaluate the exchange. Continuation requests MUST NOT substitute replacement tokens or change requested token characteristics.
+
+Partial completion as defined in {{partial-completion}} is applicable to token exchange: the authorization server MAY issue a partial exchanged token covering a subset of requested resources, audiences, or scopes together with a `deferred_code` for the upgrade.
 
 ### Example
 
@@ -1027,11 +1087,15 @@ resource=https://api.example.com
 
 When the originating request includes the `authorization_details` parameter defined by {{RFC9396}}, deferred processing state MUST preserve the originally requested authorization details. Continuation requests MUST NOT include `authorization_details`, and the authorization server MUST evaluate completion against the originally requested authorization details. Authorization decisions reached during deferred processing MAY narrow the granted authorization details but MUST NOT broaden them beyond what the originating request expressed.
 
+Partial completion as defined in {{partial-completion}} is applicable to rich authorization requests: the authorization server MAY issue a partial access token covering a subset of the requested authorization details together with a `deferred_code` for the upgrade. Profiles using this combination MUST define how to express which authorization details are present in the partial artifact and how the upgrade extends them.
+
 ## Assertion Grants
 
 An authorization server MAY defer processing during assertion grant evaluation as defined by {{RFC7521}}.
 
 For assertion grants, deferred processing state MUST preserve assertion validation results and the original assertion value or an equivalent protected reference to it. Deferral MUST NOT extend the validity period of an expired assertion or permit replay of the assertion outside the deferred processing state.
+
+Partial completion as defined in {{partial-completion}} is applicable to assertion grants when the assertion authorizes a subset of requested authorization that can be issued immediately, with the remainder resolvable asynchronously.
 
 ### JWT Bearer Example
 
@@ -1138,7 +1202,7 @@ The authorization server MUST bind the deferred code to the originating request 
 
 The binding MUST include the client identity when a client identity is present. It MUST include sender-constraining or proof-of-possession material used by the originating request, including DPoP public key thumbprints {{RFC9449}} or mutual-TLS certificate bindings {{RFC8705}}. It SHOULD include requested resources, requested scopes, grant-type-specific input artifacts, and any other values that affect token issuance.
 
-## Proof-of-Possession Continuity
+## Proof-of-Possession Continuity {#proof-of-possession-continuity}
 
 Deferred processing MUST preserve proof-of-possession and sender-constraining properties from the originating request through every continuation request and the final access token response.
 
@@ -1195,6 +1259,20 @@ Authorization servers SHOULD treat deferred codes returned through the authoriza
 When a deferred code returned through the authorization endpoint redirect has a lifetime measured in hours or days under the rules of {{lifetime-considerations}}, the authorization server MUST sender-constrain the deferred code through DPoP {{RFC9449}}, mutual-TLS client certificate binding {{RFC8705}}, or an equivalent mechanism. PKCE {{RFC7636}}, while required as a continuation binding for public clients by {{authorization-endpoint-pkce}}, is not by itself sufficient for long-lived front-channel deferred codes: PKCE binds the client instance that originated the request, but a stolen browser session retaining access to the original client instance can complete continuation. Sender-constraining the deferred code itself defends against this case.
 
 Authorization servers SHOULD bind deferred processing state created from an authorization endpoint originating request to enough device or session context to detect when continuation requests arrive from a context inconsistent with the originating request. Inconsistent context includes a different network origin, a different user-agent fingerprint, or other deployment-specific signals available to the authorization server. Detection of inconsistent continuation context is not by itself grounds for rejection (legitimate cross-device flows can produce inconsistent context), but SHOULD be reported as a security event for monitoring and MAY trigger additional risk-based controls defined by local policy or higher-layer profiles.
+
+## Partial Completion {#partial-completion-security}
+
+A partial completion response, as defined in {{partial-completion}}, issues an artifact immediately while a continuation upgrade remains pending. The issued partial artifact is valid according to its own semantics and remains so regardless of how deferred processing eventually completes, unless the profile defining the partial-completion semantics requires the authorization server to revoke or constrain it on unsuccessful continuation.
+
+Profiles using partial completion MUST define what happens to the partial artifact when continuation completes unsuccessfully, including whether the artifact is revoked, narrowed in scope, or left valid for its remaining lifetime. Authorization servers MUST implement the profile-defined behavior; failure to do so creates a window in which a denied or expired continuation leaves the partial artifact authorizing access that the originating request would not have produced under full synchronous completion.
+
+The partial artifact and the deferred code have independent lifetimes. The deferred code lifetime is governed by the lifetime guidance in {{lifetime-considerations}}; the partial artifact's lifetime is governed by the issuing grant type's normal rules. Authorization servers SHOULD NOT issue partial artifacts whose lifetimes exceed what the originating request would have produced under full synchronous completion.
+
+Sender-constraining material applied to the originating request MUST also apply to the partial artifact in the same way it applies to a fully synchronously issued artifact. The continuation upgrade preserves sender-constraining continuity as defined in {{proof-of-possession-continuity}}; the upgraded artifact MUST be bound to the same proof-of-possession material as the partial artifact.
+
+When continuation completes successfully and the profile defines replacement semantics, the authorization server MUST invalidate the partial artifact no later than when the upgrade response is returned. Failure to invalidate creates a window in which both the partial and upgraded artifacts authorize concurrent access, weakening the rotation and replay guarantees of the originating grant type.
+
+Authorization servers SHOULD record partial completion events with sufficient correlation to permit post-hoc audit of what was issued partially, what upgrade outcome was reached, and whether artifact invalidation occurred.
 
 ## Interaction URI Protection
 
@@ -1316,6 +1394,18 @@ Parameter name:
 
 Parameter usage location:
 : authorization response, token response, token request
+
+Change controller:
+: IETF
+
+Specification document(s):
+: This document
+
+Parameter name:
+: `deferred_code_expires_in`
+
+Parameter usage location:
+: authorization response, token response
 
 Change controller:
 : IETF
