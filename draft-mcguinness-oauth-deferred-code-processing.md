@@ -32,6 +32,7 @@ normative:
   RFC7523:
   RFC7591:
   RFC7636:
+  RFC8126:
   RFC8414:
   RFC8628:
   RFC8693:
@@ -392,13 +393,59 @@ Higher-layer profiles can build on this specification by defining:
 
 Higher-layer profiles MUST NOT require clients to interpret the `deferred_code` value.
 
+# Grant Mode Parameter {#grant-mode}
+
+This specification defines the `grant_mode` request parameter. Clients use `grant_mode` to express acceptable modes of the grant the authorization server produces in response to an OAuth request. The parameter applies to both authorization endpoint requests as defined in {{RFC6749}} and token endpoint requests as defined in {{RFC6749}}.
+
+## Syntax
+
+The `grant_mode` parameter is OPTIONAL. Its value is a space-delimited, case-sensitive list of one or more grant mode values registered in the "OAuth Grant Mode Values" registry established by this specification.
+
+If the parameter is omitted, the authorization server processes the request as if no grant mode was expressed and SHOULD use its default behavior, which is to produce a synchronous grant when possible.
+
+## Defined Values
+
+deferred:
+: Client accepts a deferred grant. The authorization server MAY produce the grant asynchronously and return a `deferred_code` for continuation, as defined in {{authorization-endpoint-extensions}} and {{deferred-processing-responses}}.
+
+Additional values MAY be registered by other specifications via the registry policy defined in this specification.
+
+## Multi-Value Semantics
+
+When multiple values are present in the `grant_mode` parameter, the values are interpreted disjunctively: the client accepts a grant produced in any one of the listed modes. The authorization server MAY honor any of the listed modes, in any combination compatible with the originating request and authorization server policy.
+
+This specification defines a single value, `deferred`, so multi-value semantics are only observable in combination with profile-defined values registered through the "OAuth Grant Mode Values" registry. If a profile registers an additional value (denoted here as `X`), a request with `grant_mode=deferred X` indicates that the client accepts either a deferred grant or a grant produced in mode `X` (or both, if the values are mutually compatible). The authorization server MAY produce any outcome the listed values jointly authorize, and the client MUST be prepared to receive any such outcome.
+
+Profiles defining new `grant_mode` values MUST specify whether and how their values interact with other values that may appear in the same parameter, including the `deferred` value defined by this specification.
+
+## Processing
+
+The authorization server interprets `grant_mode` as client capability and preference. Presence of a value indicates that the client is prepared to accept the corresponding grant mode; absence indicates either lack of capability or no preference. The authorization server is not required to honor every value, and a client cannot rely on a particular mode being applied based solely on presence of the value.
+
+When `grant_mode=deferred` is present and the authorization server elects to defer, the authorization server returns the deferred response defined for the originating endpoint: a deferred authorization response at the authorization endpoint (see {{authorization-endpoint-extensions}}), or a deferred processing response at the token endpoint (see {{deferred-processing-responses}}).
+
+When `grant_mode` is absent and the authorization server is otherwise willing to defer, the authorization server MAY still defer if its policy permits, subject to the client capability declared in client metadata (see {{client-capability}}). The `grant_mode` parameter is an additional per-request signal that supplements client metadata, not a replacement for capability registration.
+
+The authorization server MUST NOT use the `grant_mode` parameter to expand authorization beyond what other request parameters express.
+
+## Relationship to Other Parameters
+
+The `grant_mode` parameter joins the existing `grant_*` family alongside `grant_type` (defined by {{RFC6749}}), and is orthogonal to both `grant_type` and the `response_*` family parameters:
+
+* `grant_type` expresses the kind of grant flow being executed at the token endpoint (e.g., `authorization_code`, `client_credentials`, `refresh_token`, `urn:ietf:params:oauth:grant-type:token-exchange`).
+* `grant_mode` expresses acceptable modes of the grant the authorization server produces (`deferred` is defined in this specification; additional values may be registered by other specifications).
+* `response_type` expresses the kind of artifact the client expects from a successful authorization at the authorization endpoint (code, token, id_token).
+* `response_mode` expresses how the authorization endpoint response is delivered (query, fragment, form_post).
+
+The `_type`/`_mode` distinction in the `grant_*` family mirrors the same distinction in the `response_*` family: `_type` names the kind, `_mode` names the manner.
+
 # Authorization Endpoint Extensions {#authorization-endpoint-extensions}
 
 The following sections extend the OAuth authorization endpoint defined in {{RFC6749}} to allow the authorization server to defer completion of an authorization request.
 
 ## Deferred Authorization Response
 
-When the authorization server determines that an authorization request cannot complete synchronously, it MAY return a deferred authorization response in place of an authorization response or authorization error response.
+When the authorization server determines that an authorization request cannot complete synchronously, it MAY return a deferred authorization response in place of an authorization response or authorization error response. A client signals acceptance of a deferred authorization decision by including `grant_mode=deferred` (see {{grant-mode}}) on the authorization request.
 
 The authorization server MUST validate the authorization request to the extent necessary to determine eligibility for deferred processing before creating deferred processing state. This includes validating `client_id`, `redirect_uri`, `response_type`, and any other request parameters whose validation does not depend on completion of the deferred work. The authorization server MUST NOT issue a `deferred_code` for a request whose redirect URI cannot be validated.
 
@@ -468,7 +515,7 @@ If the `redirect_uri` cannot be validated, the authorization server MUST NOT red
 
 ## Example: Front-Channel Step-Up
 
-A client initiates an authorization code request:
+A client initiates an authorization code request, signalling acceptance of a deferred decision via `grant_mode=deferred`:
 
 ~~~ http
 GET /authorize?
@@ -478,7 +525,8 @@ GET /authorize?
   scope=transfer.execute&
   state=xyz&
   code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&
-  code_challenge_method=S256 HTTP/1.1
+  code_challenge_method=S256&
+  grant_mode=deferred HTTP/1.1
 Host: as.example.com
 ~~~
 
@@ -1252,6 +1300,18 @@ Interaction URIs and deferred codes SHOULD NOT reveal user identifiers, client i
 This specification registers the following parameters in the "OAuth Parameters" registry established by {{RFC6749}}.
 
 Parameter name:
+: `grant_mode`
+
+Parameter usage location:
+: authorization request, token request
+
+Change controller:
+: IETF
+
+Specification document(s):
+: This document
+
+Parameter name:
 : `deferred_code`
 
 Parameter usage location:
@@ -1280,6 +1340,26 @@ Parameter name:
 
 Parameter usage location:
 : token response
+
+Change controller:
+: IETF
+
+Specification document(s):
+: This document
+
+## OAuth Grant Mode Values Registry
+
+This specification establishes the "OAuth Grant Mode Values" registry. The registry contains values used in the `grant_mode` parameter defined in {{grant-mode}}.
+
+The registration policy for new values is Specification Required as defined by {{RFC8126}}.
+
+Initial registry contents:
+
+Value:
+: `deferred`
+
+Description:
+: Client accepts a deferred grant. The authorization server MAY produce the grant asynchronously and return a `deferred_code` for continuation.
 
 Change controller:
 : IETF
@@ -1628,7 +1708,7 @@ The deferred code is invalidated; subsequent continuation requests return `inval
 
 This example illustrates a deferred authorization endpoint flow in which the originating request requires step-up authentication and external approval. No authorization code is ever issued; continuation polling at the token endpoint completes the originating request directly.
 
-A client sends an authorization code request that includes PKCE:
+A client sends an authorization code request that includes PKCE and signals acceptance of a deferred authorization decision:
 
 ~~~ http
 GET /authorize?
@@ -1638,7 +1718,8 @@ GET /authorize?
   scope=transfer.execute&
   state=af0ifjsldkj&
   code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&
-  code_challenge_method=S256 HTTP/1.1
+  code_challenge_method=S256&
+  grant_mode=deferred HTTP/1.1
 Host: as.example.com
 ~~~
 
