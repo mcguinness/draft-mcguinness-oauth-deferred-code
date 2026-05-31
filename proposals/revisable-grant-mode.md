@@ -17,15 +17,17 @@ This proposal uses the following extension surfaces defined by the base spec:
 | Extension surface | Use |
 |---|---|
 | OAuth Grant Mode Values Registry (Specification Required policy) | Registers `revisable` |
-| §Abstract State Status profile-extension hook | Defines the Revision Required state |
-| §Higher-Layer Extension Points: profile-defined response parameters for out-of-band mechanisms | Defines `clarification_handle` response parameter |
-| §Continuation Request carve-out for profile-defined revision mechanisms | Defines PAR-based revision submission |
+| §Higher-Layer Extension Points: additional externally-observable states | Defines the Revision Required state |
+| §Higher-Layer Extension Points: profile-defined response parameters for out-of-band mechanisms | Defines `clarification_handle`, `rejected_scope`, and `rejected_authorization_details` response parameters |
+| §Continuation Request: profile-defined mechanisms for updating preserved parameters | Defines the PAR-based revision submission mechanism, subject to the base spec's narrowing-only constraint |
 
 This proposal also touches the following IANA registries outside the base spec's own:
 
 - OAuth Extensions Error Registry: registers `revision_required`
 - OAuth Parameters Registry: registers `clarification_handle`, `rejected_scope`, and `rejected_authorization_details`
-- Pushed Authorization Requests (RFC 9126) is used as the revision submission mechanism
+- Pushed Authorization Requests (RFC 9126) is the profile-chosen submission mechanism
+
+The base specification's §Continuation Request includes a generic carve-out permitting "higher-layer profiles MAY define mechanisms outside the deferred code grant type itself for updating the parameters preserved in the deferred processing state" subject to a narrowing-only constraint. This proposal exercises that carve-out by specifying PAR as the concrete submission mechanism, the `clarification_handle` as the binding between PAR submissions and the deferred processing state, and the narrowing comparison rules per request parameter.
 
 ## Defined Value
 
@@ -307,16 +309,16 @@ This proposal would register the following:
 
 ## Extensibility Validation Summary
 
-This proposal demonstrates the base specification's extensibility model across all of its declared extension surfaces:
+This proposal exercises the base specification's extension surfaces without requiring base-spec amendment:
 
 1. **Grant Mode value registration.** `revisable` is added via the Specification Required policy already defined by the base spec.
-2. **Profile-defined state.** Revision Required is added via the base spec's §Abstract State Status profile-extension hook. The mapping to a token endpoint error code (`revision_required`) follows the pattern the base spec explicitly anticipates.
-3. **Profile-defined response parameters.** `clarification_handle`, `rejected_scope`, and `rejected_authorization_details` are added via the §Higher-Layer Extension Points hook that allows "additional response parameters carrying handles or references used by profile-defined out-of-band mechanisms, including but not limited to revision flows that update the deferred processing state via PAR."
-4. **Profile-defined revision mechanism.** PAR-based revision submission follows the base spec's §Continuation Request carve-out: "Higher-layer profiles MAY define mechanisms for revising the originating request that update the parameters preserved in the deferred processing state. Such mechanisms MUST be defined outside the deferred code grant type itself, for example through PAR carrying a profile-defined handle bound to the deferred processing state, and MUST enforce that revisions only narrow the originally requested authorization."
+2. **Profile-defined state.** Revision Required is added via the §Higher-Layer Extension Points hook for "additional externally-observable states extending the abstract state lifecycle." Mapped to a token endpoint error code (`revision_required`) per the base spec's pattern for distinguishing profile-defined states.
+3. **Profile-defined response parameters.** `clarification_handle`, `rejected_scope`, and `rejected_authorization_details` are added via the §Higher-Layer Extension Points hook for "additional response parameters carrying handles or references used by profile-defined out-of-band mechanisms."
+4. **Profile-defined parameter-update mechanism.** PAR-based revision submission is permitted by the base spec's §Continuation Request carve-out for "mechanisms outside the deferred code grant type itself for updating the parameters preserved in the deferred processing state," subject to the narrowing-only constraint. This proposal supplies the concrete mechanism (PAR) and the binding (`clarification_handle`) layered on top of the generic carve-out.
 5. **Continuation polling unchanged.** The client polls the deferred_code at the token endpoint as defined by the base spec; revision adds a parallel back-channel for state updates but does not modify the polling state machine.
 6. **Security model preserved.** Sender-constraining, deferred_code rotation, lifetime, replay, and oracle-resistance rules from the base spec apply unchanged; this proposal adds narrowing enforcement and handle single-use rules on top.
 
-**Verdict: the extensibility model is sufficient.** Every extension surface declared by the base spec is exercised by this proposal, and no base spec change is required to support it. The carve-out for profile-defined revision mechanisms in §Continuation Request is exactly the hook that allows PAR to layer onto the substrate without breaking the prohibition against modifying originating-request parameters via the continuation grant type.
+**Verdict: the extensibility model is sufficient.** Every extension dimension exercised by this proposal lands on a generic base-spec hook. The base spec does not name PAR, revision flows, the `revisable` value, or the Revision Required state; the proposal supplies all of those on top of the generic hooks the base spec provides for new states, new response parameters, and profile-defined parameter-update mechanisms.
 
 ## Relation to Mission-Bound OAuth
 

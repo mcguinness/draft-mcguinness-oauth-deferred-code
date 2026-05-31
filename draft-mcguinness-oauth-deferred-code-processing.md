@@ -38,7 +38,6 @@ normative:
   RFC8693:
   RFC8705:
   RFC8707:
-  RFC9126:
   RFC9396:
   RFC9449:
   RFC9700:
@@ -300,7 +299,7 @@ Invalid:
 
 The authorization server MAY transition between Pending and Interaction Required more than once. Complete, Denied, Expired, and Invalid are terminal from the client's perspective.
 
-Higher-layer profiles MAY define additional externally-observable states that extend the lifecycle described above. For example, a profile MAY define a Revision Required state in which the authorization server invites the client to push a revised (narrowed) version of the originating request through Pushed Authorization Requests {{RFC9126}} or another profile-defined mechanism. Profile-defined states MUST be mapped to token endpoint responses that are distinguishable from the states defined in this specification (typically via a profile-defined `error` value in the token endpoint error response), MUST NOT alter the security or binding requirements applicable to the deferred processing state, and MUST NOT allow the resulting authorization to expand beyond what the originating request expressed.
+Higher-layer profiles MAY define additional externally-observable states that extend the lifecycle described above. Profile-defined states MUST be mapped to token endpoint responses that are distinguishable from the states defined in this specification (typically via a profile-defined `error` value in the token endpoint error response), MUST NOT alter the security or binding requirements applicable to the deferred processing state, and MUST NOT allow the resulting authorization to expand beyond what the originating request expressed.
 
 # Deferred Code Semantics {#deferred-code-semantics}
 
@@ -393,7 +392,7 @@ Higher-layer profiles can build on this specification by defining:
 * completion criteria for external authentication, approval, consent, or review,
 * additional notification mechanisms that reduce or eliminate client polling,
 * additional externally-observable states extending the abstract state lifecycle defined in this specification,
-* additional response parameters carrying handles or references used by profile-defined out-of-band mechanisms, including but not limited to revision flows that update the deferred processing state via {{RFC9126}} Pushed Authorization Requests,
+* additional response parameters carrying handles or references used by profile-defined out-of-band mechanisms,
 * constraints on which grant types, clients, or resources can use deferred processing.
 
 Higher-layer profiles MUST NOT require clients to interpret the `deferred_code` value.
@@ -789,7 +788,7 @@ code_verifier:
 
 The request MUST NOT include parameters that modify or replace parameters from the originating request, including `scope`, `resource` as defined by {{RFC8707}}, `audience`, `authorization_details` as defined by {{RFC9396}}, `redirect_uri`, `subject_token`, `actor_token`, `assertion`, or grant-type-specific parameters from the originating request. The authorization server MUST reject such requests with `invalid_request`. The `code_verifier` parameter is permitted on continuation requests only as defined above for authorization endpoint deferral.
 
-Higher-layer profiles MAY define mechanisms for revising the originating request that update the parameters preserved in the deferred processing state. Such mechanisms MUST be defined outside the deferred code grant type itself, through Pushed Authorization Requests {{RFC9126}} carrying a profile-defined handle bound to the deferred processing state, a profile-defined dedicated revision endpoint, or another profile-defined mechanism. The mechanism MUST enforce that revisions only narrow the originally requested authorization (subset of requested scopes, resources, audiences, and authorization details), never expanding it. The continuation grant type itself never carries revised parameters; revised parameters reach the deferred processing state through the profile-defined mechanism, and the continuation request continues to use the existing `deferred_code` to observe the updated state.
+Higher-layer profiles MAY define mechanisms outside the deferred code grant type itself for updating the parameters preserved in the deferred processing state. Such mechanisms MUST enforce that updates only narrow the originally requested authorization (subset of requested scopes, resources, audiences, and authorization details), never expanding it. The continuation grant type itself never carries modified parameters; updated parameters reach the deferred processing state through the profile-defined mechanism, and the continuation request continues to use the existing `deferred_code` to observe the updated state.
 
 If the originating request was made by an authenticated client, the continuation request MUST authenticate the same client. If the originating request was made by an unauthenticated client that included a `client_id`, the continuation request MUST include the same `client_id`. If the originating request used sender-constrained client authentication or proof-of-possession material, the authorization server MUST apply equivalent sender-constraining requirements to the continuation request.
 

@@ -21,17 +21,17 @@ Defines `grant_mode=revisable`, the Revision Required abstract state, and a PAR-
 
 Exercises:
 - OAuth Grant Mode Values Registry (registration)
-- §Abstract State Status profile-extension hook (defines Revision Required state)
-- §Higher-Layer Extension Points (profile-defined response parameters: `clarification_handle`, `rejected_scope`, `rejected_authorization_details`)
-- §Continuation Request carve-out (PAR-based revision mechanism outside the continuation grant type)
+- §Higher-Layer Extension Points: additional externally-observable states (defines Revision Required state)
+- §Higher-Layer Extension Points: profile-defined response parameters (`clarification_handle`, `rejected_scope`, `rejected_authorization_details`)
+- §Continuation Request: profile-defined mechanisms for updating preserved parameters (PAR-based revision submission, subject to the base spec's narrowing-only constraint)
 - OAuth Extensions Error Registry (new error code `revision_required`)
 - OAuth Parameters Registry (new parameters)
 
 ## How to read these proposals
 
-Each proposal includes an "Extensibility Validation Summary" section that catalogs which base-spec extension surfaces it exercises and asserts whether base-spec changes would be required to support it. The intent is that an honest reviewer can confirm "no base-spec change required" for each proposal by walking the checklist.
+Each proposal includes an "Extensibility Validation Summary" section that catalogs which base-spec extension surfaces it exercises and confirms whether base-spec changes would be required to advance the proposal toward publication.
 
-If a proposal cannot be expressed without modifying the base spec, the proposal documents the gap and the base spec is amended. The two proposals here both pass the test: the base spec, as currently drafted on the `async-token-request-layer` branch, is sufficient to support both extensions without modification.
+The intent is that an honest reviewer can confirm "no base-spec change required" for each proposal by walking the checklist. The two proposals here both pass the test: the base spec is sufficient to support both extensions without modification. The base spec does this by providing generic extension hooks (new states, new response parameters, profile-defined out-of-band mechanisms with narrowing-only constraints) without naming any specific extension or anticipating any specific use case. The proposals layer their concrete designs on top of the generic hooks.
 
 ## Future proposals
 
