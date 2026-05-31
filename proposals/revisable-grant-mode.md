@@ -1,4 +1,4 @@
-# Revisable Deferred Authorization for OAuth Asynchronous Request Processing
+# Revisable Deferred Authorization for OAuth Deferred Request Processing
 
 ## Status
 
@@ -6,7 +6,7 @@ Proposal. This document defines a higher-layer profile of [draft-mcguinness-oaut
 
 ## Abstract
 
-This proposal defines a revisable deferred authorization profile for OAuth asynchronous request processing. The profile consists of the `revisable` value for the `grant_mode` parameter, the Revision Required externally-observable state, the `revision_required` token endpoint error, clarification response parameters, and a Pushed Authorization Requests (PAR) based revision submission mechanism. It allows an authorization server, when it determines that an originating request cannot be granted as stated but a narrowed version could be, to invite the client to push a narrowed revision and then continue polling with the existing deferred-code continuation mechanism rather than abandoning the request outright.
+This proposal defines a revisable deferred authorization profile for OAuth deferred request processing. The profile consists of the `revisable` value for the `grant_mode` parameter, the Revision Required externally-observable state, the `revision_required` token endpoint error, clarification response parameters, and a Pushed Authorization Requests (PAR) based revision submission mechanism. It allows an authorization server, when it determines that an originating request cannot be granted as stated but a narrowed version could be, to invite the client to push a narrowed revision and then continue polling with the existing deferred-code continuation mechanism rather than abandoning the request outright.
 
 The motivating use case is Mission-Bound OAuth, where an autonomous agent proposes a "mission" (set of permissions and authorization details) and a human reviewer may approve a narrowed subset. Without this mechanism, the agent must abandon the original request and submit a new one, losing the deferred processing state and any preceding work.
 
@@ -113,7 +113,7 @@ code_challenge_method=S256&
 clarification_handle=ch_4QFJ3P9
 ~~~
 
-This proposal uses PAR as an authenticated request-submission endpoint for revised authorization request parameters. The returned PAR `request_uri`, if any, is an artifact of the PAR protocol and is not used to drive the deferred-code continuation.
+This proposal uses PAR as an authenticated request-submission endpoint for revised authorization request parameters. This reuse is intentionally conservative for the validation exercise because PAR already provides authenticated request submission, request-object processing, and a registered endpoint many authorization servers understand. It is also a tradeoff: the returned PAR `request_uri`, if any, is an artifact of the PAR protocol and is not used to drive the deferred-code continuation.
 
 The authorization server:
 
@@ -253,6 +253,8 @@ The PAR-based revision mechanism is most natural when the originating request or
 
 Profiles MUST NOT use the PAR `request_uri` returned from revision submission to create a new authorization transaction unless they explicitly terminate the deferred processing state and start a separate OAuth flow. The normal behavior of this proposal is to update the existing deferred processing state and continue using the existing `deferred_code`.
 
+A publication-track profile that adopts this proposal SHOULD justify the choice of PAR reuse. If the profile's revision vocabulary is not naturally authorization-request-shaped, or if discarding the returned `request_uri` would confuse implementers, the profile SHOULD define a dedicated revision endpoint instead. A dedicated endpoint would exercise the same base-spec extension surface: an out-of-band narrowing-only update mechanism bound to the deferred processing state.
+
 ## State Machine Extension
 
 ~~~ ascii-art
@@ -326,6 +328,8 @@ This proposal exercises the base specification's extension surfaces without requ
 6. **Security model preserved.** Sender-constraining, deferred_code rotation, lifetime, replay, and oracle-resistance rules from the base spec apply unchanged; this proposal adds narrowing enforcement and handle single-use rules on top.
 
 **Verdict: the extensibility model is sufficient.** Every extension dimension exercised by this proposal lands on a generic base-spec hook. The base spec does not name PAR, revision flows, the `revisable` value, or the Revision Required state; the proposal supplies all of those on top of the generic hooks the base spec provides for new states, new response parameters, and profile-defined parameter-update mechanisms.
+
+This proposal is the most substantial of the worked examples in this directory, and the size is intrinsic to revision semantics: a new state, four new response parameters, a new error code, and a clarification-handle handshake are what the use case requires. The substrate's contribution is not that it makes any of this small but that none of it required a base-spec amendment. Profile authors approaching the substrate should expect their own profile's complexity to be governed by the use case, not reduced by the substrate.
 
 ## Relation to Mission-Bound OAuth
 

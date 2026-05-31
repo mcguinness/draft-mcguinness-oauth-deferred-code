@@ -1,6 +1,6 @@
 ---
-title: "OAuth 2.0 Asynchronous Request Processing"
-abbrev: oauth-async-request
+title: "OAuth 2.0 Deferred Request Processing"
+abbrev: oauth-deferred-request
 docname: draft-mcguinness-oauth-deferred-code-processing-latest
 category: std
 
@@ -10,8 +10,8 @@ workgroup: "Web Authorization Protocol"
 
 keyword:
  - OAuth
- - Asynchronous Processing
  - Deferred Processing
+ - Asynchronous Processing
  - Token Endpoint
  - Authorization Endpoint
  - Substrate
@@ -57,12 +57,15 @@ informative:
   OIDC-CORE:
     target: https://openid.net/specs/openid-connect-core-1_0.html
     title: "OpenID Connect Core 1.0"
+  RFC9126:
 
 --- abstract
 
-This specification defines a generic substrate for asynchronous processing of OAuth requests. An authorization server can defer completion of any OAuth token request or authorization request and return a `deferred_code` representing suspended processing state; clients later resume processing using the deferred code grant type at the token endpoint, regardless of which endpoint the originating request was submitted to. The authorization server can also produce a partial completion that issues an artifact reflecting currently-available authorization together with a `deferred_code` for asynchronously upgrading the remainder. Clients express acceptance of deferred or partial completion through the `grant_mode` request parameter.
+This specification defines a generic substrate for deferred processing of OAuth requests. An authorization server can defer completion of any OAuth token request or authorization request and return a `deferred_code` representing suspended processing state; clients later resume processing using the deferred code grant type at the token endpoint, regardless of which endpoint the originating request was submitted to. The authorization server can also produce a partial completion that issues an artifact reflecting currently-available authorization together with a `deferred_code` for asynchronously upgrading the remainder. Clients express acceptance of deferred or partial completion through the `grant_mode` request parameter.
 
-Existing OAuth async patterns such as the OAuth 2.0 Device Authorization Grant {{RFC8628}} and OpenID Connect CIBA can be understood as profiles of this substrate that pre-date its generalization. The substrate provides a single continuation reference, polling state machine, completion vocabulary, and a set of generic extension hooks; profiles supply their concrete designs on top.
+Existing OAuth and OpenID Connect mechanisms such as the OAuth 2.0 Device Authorization Grant {{RFC8628}} and OpenID Connect CIBA {{CIBA}} exhibit the same underlying pattern: a continuation reference, a polling state machine, and a completion vocabulary. This specification generalizes that pattern into a single substrate that future deferred processing cases can build on. Those existing specifications are not amended or replaced by this one; their relationship to this substrate is retrospective and is discussed in {{relationship-to-existing-oauth-asynchronous-mechanisms}}.
+
+This specification also updates the existing IANA registration of the OpenID Connect `interaction_required` error code to permit its use at the token endpoint for deferred processing waiting on external interaction.
 
 This specification intentionally remains at the OAuth layer and does not define authentication ceremonies, identity semantics, consent semantics, or ID Token processing rules. Higher-layer protocols such as OpenID Connect MAY define profiles using the mechanisms defined by this specification.
 
@@ -79,9 +82,11 @@ OAuth defines synchronous processing for token requests and authorization reques
 * step-up authentication or in-flow approval gates during authorization-endpoint flows,
 * cross-domain authorization orchestration.
 
-Existing OAuth and OpenID Connect specifications address portions of this problem through separate mechanisms with distinct vocabularies. The OAuth 2.0 Device Authorization Grant {{RFC8628}} defines `device_code` and a polling state machine for input-constrained devices. OpenID Connect CIBA {{CIBA}} defines `auth_req_id` and a separate backchannel authentication endpoint for end-user authentication. OpenID for Verifiable Credential Issuance defines `pre-authorized_code` for credential issuance flows. Each addresses a particular origination case with its own protocol surface, vocabulary, and state machine.
+Existing OAuth and OpenID Connect specifications address portions of this problem through separate mechanisms with distinct vocabularies. The OAuth 2.0 Device Authorization Grant {{RFC8628}} defines `device_code` and a polling state machine for input-constrained devices. OpenID Connect CIBA {{CIBA}} defines `auth_req_id` and a separate backchannel authentication endpoint for end-user authentication. OpenID for Verifiable Credential Issuance defines `pre-authorized_code` for credential issuance flows. Each addresses a particular origination case with its own protocol surface, vocabulary, and state machine, but the underlying pattern is the same in each: a continuation reference, a polling state machine, and a completion vocabulary.
 
-This specification defines a single substrate for asynchronous processing of OAuth requests: one continuation reference (`deferred_code`), one polling state machine, one completion vocabulary, applicable across originating endpoints and grant types. Existing async patterns can be understood as profiles of this substrate that pre-date its generalization. Future async cases can be added by registering new values in this specification's IANA registries rather than inventing new endpoints, new vocabularies, or new state machines. This separates async processing state management from higher-layer identity, authentication, and user interaction semantics.
+This specification generalizes that pattern into a single substrate for deferred processing of OAuth requests: one continuation reference (`deferred_code`), one polling state machine, one completion vocabulary, applicable across originating endpoints and grant types. The existing mechanisms named above are not amended or replaced by this specification; they continue to operate as defined by their own RFCs and predate this generalization. Future deferred processing cases can be added by registering new values in this specification's IANA registries rather than inventing new endpoints, new vocabularies, or new state machines. This separates deferred processing state management from higher-layer identity, authentication, and user interaction semantics.
+
+This specification also updates the existing OpenID Connect `interaction_required` error registration to add token endpoint response usage for deferred processing waiting on external interaction; OpenID Connect implementations that recognize `interaction_required` only at the authorization endpoint will need to handle it at the token endpoint when this specification is supported. The registry update is described in {{iana-considerations}}.
 
 This specification defines:
 
@@ -144,7 +149,7 @@ Continuation Response:
 
 # Architectural Model
 
-This specification defines a substrate for asynchronous processing of OAuth requests.
+This specification defines a substrate for deferred processing of OAuth requests.
 
 The authorization server can temporarily suspend completion of an originating request while external interaction or asynchronous evaluation occurs. Suspension does not create a new authorization transaction. It preserves the originating request and resumes evaluation of that request later.
 
@@ -184,8 +189,9 @@ This specification is designed to:
 * allow deferred completion for arbitrary token endpoint and authorization endpoint requests,
 * unify the continuation interface at the token endpoint regardless of which endpoint received the originating request,
 * avoid client interpretation of server-side processing state,
-* support both interactive and non-interactive asynchronous processing,
-* serve as a substrate that future OAuth asynchronous request patterns can profile rather than reinvent,
+* support both interactive and non-interactive deferred processing,
+* define a minimal state-change notification primitive while leaving richer push or streaming channels to profiles,
+* serve as a substrate that future OAuth deferred processing patterns can profile rather than reinvent,
 * allow higher-layer profiles to define user-facing or identity-specific behavior.
 
 ## Design Non-Goals
@@ -195,11 +201,41 @@ This specification does not define:
 * a new authorization endpoint flow distinct from existing authorization request processing,
 * a redirect-based interaction protocol,
 * a user authentication protocol,
-* push delivery of access tokens or identity assertions,
+* specific push or streaming completion-delivery mechanisms (these are profile-defined; this specification provides a generic hook for them in {{advisory-delivery}}),
 * semantics for the external interaction,
 * resource server processing for deferred codes.
 
-The notification mode defined in {{notification}} signals state changes only and does not deliver tokens or identity claims to the client.
+The notification mode defined in {{notification}} signals state changes only and does not deliver tokens or identity claims to the client. Profile-defined advisory delivery channels (see {{advisory-delivery}}) MAY carry non-authoritative result metadata and MAY carry sender-constrained issued credentials when the additional requirements in {{advisory-delivery}} are met; they MUST NOT carry bearer access tokens, bearer refresh tokens, authorization codes, assertions, or ID Tokens that lack a confirmation-method binding. Continuation polling at the token endpoint is always available as an authoritative completion path per the substrate guarantees in {{substrate-invariants}}. "Deferred processing" refers to authorization-server-side suspension of an originating request with client-side continuation through polling, optionally accelerated or supplemented by advisory channels.
+
+## Substrate Invariants {#substrate-invariants}
+
+This section states the invariants on which the substrate depends. They are separated into guarantees (what an authorization server implementing this specification provides to clients and to higher-layer profiles) and obligations (what higher-layer profiles MUST preserve when they extend the substrate).
+
+### Substrate Guarantees
+
+An authorization server implementing this specification provides the following guarantees:
+
+1. **No authorization expansion.** Deferred processing state is not used to expand authorization beyond the originating request. Any authorization decision reached during deferred processing can only constrain or complete the originating request.
+
+2. **Continuation through the token endpoint.** The deferred code grant type at the token endpoint is the sole interface for continuation, regardless of which endpoint received the originating request.
+
+3. **Sender-constraining continuity.** Sender-constraining and proof-of-possession material from the originating request applies to every continuation request and the final access token response. Continuation requests cannot weaken, omit, or replace these requirements.
+
+4. **Originating request immutability through the continuation grant type.** Continuation requests do not carry parameters that modify or replace parameters from the originating request.
+
+5. **Opaque continuation reference.** Authorization servers do not encode authorization, identity, or policy decisions in the `deferred_code` value in a way that requires client interpretation. Clients treat the `deferred_code` as opaque.
+
+6. **Polling is always available as an authoritative completion path.** Continuation polling at the token endpoint using the deferred code grant type is always available as an authoritative way to observe the outcome of a deferred request. Profile-defined advisory delivery channels MAY also serve as authoritative completion paths when they meet the additional requirements in {{advisory-delivery}}, including the requirement that any credentials they carry be sender-constrained. The notification mechanism defined in {{notification}} is not an authoritative completion path; it carries state-change hints only, and the client obtains the result through continuation polling. Authorization servers and clients MUST be prepared to use polling when advisory delivery fails, is unavailable, or is not subscribed.
+
+### Profile Obligations
+
+A higher-layer profile that extends this specification MUST preserve the substrate guarantees above and additionally MUST satisfy the following obligations:
+
+A. **State distinguishability.** Profile-defined externally-observable states MUST be mapped to token endpoint responses distinguishable from the states defined in this specification, typically via profile-defined error code values.
+
+B. **Narrowing-only parameter updates.** A profile-defined mechanism for updating parameters preserved in the deferred processing state MUST operate outside the continuation grant type and MUST enforce narrowing-only updates relative to the originating request.
+
+C. **No relaxation of guarantees.** A profile MAY define new grant_mode values, new externally-observable states, new response parameters, new parameter-update mechanisms, and new advisory delivery channels. A profile MUST NOT relax the no-authorization-expansion, sender-constraining-continuity, or originating-request-immutability guarantees above. A profile MUST NOT remove polling as an available authoritative completion path; a profile MAY add advisory delivery as an additional authoritative path subject to the requirements in {{advisory-delivery}}.
 
 ## Processing Model
 
@@ -276,7 +312,7 @@ The diagram is descriptive. The authorization server can rotate deferred codes, 
 
 Deferred processing state ends when the request completes successfully, fails permanently, expires, is revoked, is canceled by the client, or is otherwise terminated by the authorization server.
 
-## Abstract State Status
+## Abstract State Status {#abstract-state-status}
 
 Authorization servers can use any internal representation for deferred processing state. For interoperability, the externally observable status of that state is mapped to token endpoint responses as follows:
 
@@ -299,6 +335,8 @@ Invalid:
 : The deferred code cannot be used because it is malformed, unknown, revoked, not bound to the requesting client, or otherwise invalid. The authorization server returns `invalid_grant`. Deferred processing state terminated by client-initiated cancellation as defined in {{cancellation}} is observed externally as Denied when the authorization server can still identify the canceled state, or Invalid when the deferred code no longer identifies retained state.
 
 The authorization server MAY transition between Pending and Interaction Required more than once. Complete, Denied, Expired, and Invalid are terminal from the client's perspective.
+
+Authorization servers that do not require external interaction for any deferred request will never transition deferred processing state to Interaction Required; in such deployments, the only non-terminal state observed by clients is Pending. Interaction Required is part of the substrate but is not required for an authorization server to implement deferred processing.
 
 Higher-layer profiles MAY define additional externally-observable states that extend the lifecycle described above. Profile-defined states MUST be mapped to token endpoint responses that are distinguishable from the states defined in this specification (typically via a profile-defined `error` value in the token endpoint error response), MUST NOT alter the security or binding requirements applicable to the deferred processing state, and MUST NOT allow the resulting authorization to expand beyond what the originating request expressed.
 
@@ -347,7 +385,7 @@ The authorization server communicates deferred processing state to the client th
 * continuation responses,
 * optional interaction continuation references.
 
-## Client Behavior
+## Client Behavior {#client-behavior}
 
 A client that receives a deferred processing response MUST NOT treat the response as successful token issuance. The client can either abandon the deferred request or submit continuation requests according to this specification.
 
@@ -365,11 +403,23 @@ If `true`, the authorization server MAY return deferred responses to this client
 
 If `false`, the authorization server MUST NOT defer originating requests from this client and MUST instead complete each originating request synchronously, either by issuing the appropriate success response or by returning a terminal error response.
 
-A client that has not registered this parameter is treated as if the value is `true`. The default reflects that a deferred processing response uses the OAuth token endpoint error response form defined by {{RFC6749}}, and a deferred authorization response uses the OAuth authorization response redirect form: a client unaware of this specification observes a deferred processing response as a token endpoint error and abandons the request, or observes a deferred authorization response as an authorization response that lacks `code` or `access_token` and is rejected by client state-machine validation. In both cases the unaware client experiences a clean failure with no protocol harm, so an authorization server offering deferral does not place an unaware client in a worse position than returning a terminal error today.
+A client that has not registered this parameter provides no static capability signal. In that case, the authorization server MUST NOT infer broad client support for deferred processing from the missing metadata alone. The authorization server MAY still defer a specific originating request when the request itself contains an applicable `grant_mode` value indicating per-request acceptance, unless local policy or profile requirements demand static client registration.
 
-A client SHOULD register `deferred_code_processing_supported=false` when it cannot accept a non-synchronous outcome, for example when the calling code path has a hard latency budget, when the client has no facility to retain or resume continuation state, or when client policy requires sync-or-fail token acquisition.
+A client SHOULD register `deferred_code_processing_supported=false` when it cannot accept a non-synchronous outcome, for example when the calling code path has a hard latency budget, when the client has no facility to retain or resume continuation state, or when client policy requires sync-or-fail token acquisition. A value of `false` is an explicit opt-out: the authorization server MUST NOT defer originating requests from that client even if a request contains `grant_mode`, unless the client metadata is first updated by an authorized registration mechanism.
 
-Capability is a static property of the client implementation, expressed in client metadata. The `grant_mode` parameter is a per-request signal of client preference and acceptance for a particular originating request; it supplements, but does not replace, this static capability declaration.
+Static client capability and per-request acceptance answer different questions. Client metadata declares the modes a client implementation can handle in principle; the `grant_mode` parameter declares the modes the client accepts for a specific request. The two operate together: an authorization server SHOULD defer only when both the client's static metadata permits it and the request itself is eligible under the authorization server's policy (the default behavior when `grant_mode` is absent is defined in {{grant-mode}}).
+
+The two-channel arrangement matches the precedent set by existing OAuth and OpenID Connect parameters such as `response_type` and its corresponding client metadata field `response_types`, where durable capability is registered as metadata and per-request acceptance is signaled by the parameter. See {{grant-mode-precedents}} for the full mapping. A client with no registered capability signal that wishes to opt into deferred processing for a specific request uses `grant_mode=deferred` for that request; the authorization server is then permitted to defer the request under the policy described in {{grant-mode}}.
+
+The following table summarizes the deferral eligibility effect of client metadata and request parameters. Other eligibility checks, client policy, authorization server policy, and profile-specific requirements still apply.
+
+| Client metadata | Request parameter | Token endpoint deferral | Authorization endpoint deferral |
+|---|---|---|---|
+| `deferred_code_processing_supported=false` | any value or omitted | MUST NOT defer | MUST NOT defer |
+| `deferred_code_processing_supported=true` | `grant_mode=deferred` | MAY defer | MAY defer |
+| `deferred_code_processing_supported=true` | omitted | MAY defer | MUST NOT defer |
+| omitted | `grant_mode=deferred` | MAY defer | MAY defer |
+| omitted | omitted | MUST NOT infer support; complete synchronously or return terminal error | MUST NOT defer |
 
 Client metadata is registered as defined by {{RFC7591}} or by an authorization server's local registration mechanism.
 
@@ -391,7 +441,7 @@ Higher-layer profiles can build on this specification by defining:
 * the semantics and user experience associated with an `interaction_uri`,
 * additional response parameters for interaction or transaction context,
 * completion criteria for external authentication, approval, consent, or review,
-* additional notification mechanisms that reduce or eliminate client polling,
+* additional advisory delivery mechanisms that reduce polling latency or cost while preserving token endpoint polling as the authoritative completion channel,
 * additional externally-observable states extending the abstract state lifecycle defined in this specification,
 * additional response parameters carrying handles or references used by profile-defined out-of-band mechanisms,
 * constraints on which grant types, clients, or resources can use deferred processing.
@@ -400,15 +450,86 @@ Higher-layer profiles MUST NOT require clients to interpret the `deferred_code` 
 
 Higher-layer profiles that define new response parameters, request parameters, error codes, or `grant_mode` values SHOULD register them in the appropriate IANA registry (OAuth Parameters Registry, OAuth Extensions Error Registry, or OAuth Grant Mode Values Registry as applicable). Profile-defined parameter and value names SHOULD avoid collisions with existing OAuth parameter and value names; profiles MAY use a profile-specific prefix or namespace convention to reduce collision risk. When multiple profiles define response parameters that may appear in the same response, profiles SHOULD specify how their parameters compose with parameters defined by other profiles.
 
+## Profile-Defined Advisory Delivery Channels {#advisory-delivery}
+
+Higher-layer profiles MAY define mechanisms for delivering deferred processing state transitions, completion indications, non-authoritative result metadata, or sender-constrained issued credentials to clients through channels distinct from the continuation polling defined in this specification. Such mechanisms include but are not limited to authorization-server-to-client push delivery to client-registered endpoints and authorization-server-side streaming of state events.
+
+This section uses "advisory" as a category name carried forward from earlier drafts. Under the rules below, a profile-defined channel MAY serve as an authoritative completion path for sender-constrained credentials in addition to the polling path defined by this specification; it remains "advisory" in the sense that polling is always also available and the client may rely on either path. Channels that carry only state-change hints or non-authoritative metadata are advisory in the stricter sense.
+
+### General Requirements
+
+All profile-defined advisory delivery channels MUST:
+
+* authenticate the delivery to the client through credentials bound to the deferred processing state,
+* bind each delivery to a specific deferred processing state,
+* include sufficient context (typically a delivery event identifier, a delivery timestamp, and the `deferred_code`) for the client to validate that the delivery is fresh and corresponds to a request the client initiated,
+* protect delivered content from replay and tampering, including TLS for all advisory delivery transport,
+* preserve polling at the token endpoint as an available authoritative completion path, as required by the substrate guarantees in {{substrate-invariants}},
+* not alter the security or binding invariants stated in {{substrate-invariants}}.
+
+Profile-defined advisory channels MAY use new authorization server endpoints distinct from the token endpoint for delivery (for example, a streaming endpoint serving Server-Sent Events). Such profile-defined endpoints MUST be published in authorization server metadata, MUST authenticate using credentials and sender-constraining proof equivalent to those required for a continuation request at the token endpoint, and MUST NOT host continuation processing itself. The continuation interface remains the token endpoint as defined in this specification.
+
+### Payload Content Rules
+
+Advisory channels are constrained in what they MAY carry as payload content. The constraints are split along the bearer-versus-sender-constrained distinction because the disclosure risk is materially different in the two cases.
+
+A profile-defined advisory channel MUST NOT carry any of the following as payload content:
+
+* bearer access tokens (access tokens not sender-constrained through DPoP {{RFC9449}}, mutual-TLS client certificate binding {{RFC8705}}, or an equivalent mechanism),
+* bearer refresh tokens,
+* authorization codes,
+* assertions (for example, the `assertion` parameter of {{RFC7521}}),
+* ID Tokens that lack a confirmation-method binding (such as a `cnf` claim) tying the ID Token to a client-held key or certificate.
+
+A profile-defined advisory channel MAY carry the following as payload content, subject to the additional requirements stated below:
+
+* sender-constrained access tokens (access tokens bound to a DPoP key thumbprint, an mTLS certificate thumbprint, or an equivalent sender-constraining mechanism),
+* sender-constrained refresh tokens,
+* ID Tokens with a confirmation-method binding,
+* non-credential result metadata (such as `token_type`, `expires_in`, granted `scope`, or profile-defined non-credential fields).
+
+The rule's purpose is defense in depth. A bearer credential leaked by a misconfigured advisory endpoint or observed in an intermediary's logs is usable by any party that obtains it. A sender-constrained credential leaked the same way is useless to a party that does not hold the bound key or certificate, because resource servers (and ID Token consumers) require fresh proof of possession on each use. The rule is therefore not a blanket restriction on credential delivery; it is a restriction on delivering credentials whose security relies solely on confidentiality of the credential value.
+
+### Additional Requirements for Credential Delivery
+
+A profile-defined advisory channel that carries credentials permitted by the rules above MUST additionally:
+
+* deliver only credentials that are sender-constrained at issuance through a mechanism the resource server (or, for ID Tokens, the consumer) verifies on every use of the credential;
+* include freshness metadata (a delivery event identifier and timestamp) sufficient to detect replay of the delivery itself, in addition to the sender-constraining proof that protects the credential at the resource server;
+* invalidate the credential, where the credential is independently revocable, if the deferred processing state is cancelled per {{cancellation}} before the client has confirmed receipt or, if a confirmation mechanism is not defined by the profile, treat the delivered credential as committed at the time of successful delivery and accept that subsequent cancellation cannot retroactively invalidate it;
+* ensure that the same set of credentials would be returned by continuation polling for the same deferred processing state, so that the client may choose to obtain the credentials by polling without observing a different result.
+
+Profiles SHOULD define a delivery-confirmation mechanism so the authorization server can distinguish between delivered-but-unconfirmed and delivered-and-confirmed states. Profiles that do not define a confirmation mechanism MUST address the cancellation race explicitly: either accept that delivered credentials are committed at delivery time, or define a window in which delivered credentials may still be invalidated by cancellation and document the resulting implications for client behavior.
+
+### Built-in Notification Mechanism
+
+The notification mechanism defined in {{notification}} is the substrate's only built-in advisory channel and is specifically restricted to state-change hints. The notification body carries only the affected `deferred_code` and MUST NOT carry credentials, result metadata, or anything else; notification is not an authoritative completion path and the client obtains the result through continuation polling. Profile-defined channels operate under the broader rules in this section.
+
+### Worked Examples
+
+Worked examples of profile-defined advisory delivery channels (a webhook result delivery profile and a Server-Sent Events streaming profile) are available in the proposals/ directory of this specification's repository. Both proposals exercise the full scope this section permits, including credential delivery when the issued access token is sender-constrained, with preview-only delivery as the fallback otherwise. They are illustrative, not normative.
+
 # Grant Mode Parameter {#grant-mode}
 
-This specification defines the `grant_mode` request parameter. Clients use `grant_mode` to express acceptable modes of the grant the authorization server produces in response to an OAuth request. The parameter applies to both authorization endpoint requests as defined in {{RFC6749}} and token endpoint requests as defined in {{RFC6749}}.
+This specification defines the `grant_mode` request parameter. A value in `grant_mode` signals that the client accepts a grant produced in that mode for the request that carries it. The parameter applies to both authorization endpoint requests as defined in {{RFC6749}} and token endpoint requests as defined in {{RFC6749}}.
+
+The `grant_mode` parameter is informed by OAuth's existing multi-valued request parameters; reviewers familiar with `scope`, `response_type`, `prompt`, or `acr_values` will recognize the general structure even though each parameter has its own selection and composition rules. The detailed comparison appears in {{grant-mode-precedents}}.
 
 ## Syntax
 
 The `grant_mode` parameter is OPTIONAL. Its value is a space-delimited, case-sensitive list of one or more grant mode values registered in the "OAuth Grant Mode Values" registry established by this specification.
 
 If the parameter is omitted, the authorization server processes the request as if no grant mode was expressed and SHOULD use its default behavior, which is to produce a synchronous grant when possible.
+
+## Semantics
+
+A value in `grant_mode` is a request-level signal that the client accepts a grant produced in the named mode for the request that carries the parameter. The authorization server MAY produce a grant in any listed mode, subject to its own policy and the request's eligibility. Presence of a value does not guarantee that the named mode will be applied, and absence of a value does not by itself prevent the authorization server from selecting a mode permitted by the client's static capability in client metadata (see {{client-capability}}).
+
+When multiple values are present, the values are interpreted disjunctively: the client accepts a grant produced in any one of the listed modes. The authorization server MAY honor any of the listed values, in any combination compatible with the originating request and authorization server policy.
+
+The `grant_mode` parameter does not declare durable client capability. Durable capability is declared in client metadata (see {{client-capability}}) and answers the question "what modes can this client implementation handle in principle?" The `grant_mode` parameter answers a separate, request-level question: "what modes does the client accept for this specific request?" A client that can handle deferral in general may still want a particular request completed synchronously (for example, a request on a strict latency budget); a client that wants to opt into a profile-defined mode for a specific request signals that with `grant_mode` because static metadata cannot represent a per-request choice.
+
+The authorization server MUST NOT use the `grant_mode` parameter to expand authorization beyond what other request parameters express.
 
 ## Defined Values
 
@@ -417,30 +538,36 @@ deferred:
 
 Additional values MAY be registered by other specifications via the registry policy defined in this specification.
 
-## Multi-Value Semantics
-
-When multiple values are present in the `grant_mode` parameter, the values are interpreted disjunctively: the client accepts a grant produced in any one of the listed modes. The authorization server MAY honor any of the listed modes, in any combination compatible with the originating request and authorization server policy.
-
 This specification defines a single value, `deferred`, so multi-value semantics are only observable in combination with profile-defined values registered through the "OAuth Grant Mode Values" registry. If a profile registers an additional value (denoted here as `X`), a request with `grant_mode=deferred X` indicates that the client accepts either a deferred grant or a grant produced in mode `X` (or both, if the values are mutually compatible). The authorization server MAY produce any outcome the listed values jointly authorize, and the client MUST be prepared to receive any such outcome.
 
 Profiles defining new `grant_mode` values MUST specify whether and how their values interact with other values that may appear in the same parameter, including the `deferred` value defined by this specification.
 
-## Processing
-
-The authorization server interprets `grant_mode` as client capability and preference. Presence of a value indicates that the client is prepared to accept the corresponding grant mode; absence indicates either lack of capability or no preference. The authorization server is not required to honor every value, and a client cannot rely on a particular mode being applied based solely on presence of the value.
+## Authorization Server Processing
 
 When `grant_mode=deferred` is present and the authorization server elects to defer, the authorization server returns the deferred response defined for the originating endpoint: a deferred authorization response at the authorization endpoint (see {{authorization-endpoint-extensions}}), or a deferred processing response at the token endpoint (see {{deferred-processing-responses}}).
 
-When `grant_mode` is absent and the authorization server is otherwise willing to defer, the authorization server MAY still defer if its policy permits, subject to the client capability declared in client metadata (see {{client-capability}}). The `grant_mode` parameter is an additional per-request signal that supplements client metadata, not a replacement for capability registration.
+When `grant_mode` is absent and the authorization server is otherwise willing to defer, the authorization server MAY still defer if its policy permits and the client's registered metadata declares `deferred_code_processing_supported=true` (see {{client-capability}}). If neither static client metadata nor the request itself signals deferred-processing support, the authorization server MUST complete the originating request synchronously or return an endpoint-appropriate terminal error response.
 
-The authorization server MUST NOT use the `grant_mode` parameter to expand authorization beyond what other request parameters express.
+## Relationship to Existing OAuth Multi-Valued Request Parameters {#grant-mode-precedents}
 
-## Relationship to Other Parameters
+The `grant_mode` parameter is modeled on OAuth's pattern of space-delimited request parameters whose values are drawn from a registry or specification-defined value set. The comparison is structural rather than exact: the selection semantics differ across existing parameters.
+
+* **`scope`** (defined by {{RFC6749}}): the client requests a set of access scopes; the authorization server can grant a subset.
+* **`response_type`** (defined by {{RFC6749}}): the client identifies the authorization response artifact set it is prepared to receive (for example, `code` or the combined response type `code id_token`).
+* **`prompt`** (defined by {{OIDC-CORE}}): the client lists authentication-flow behavior values; the authorization server applies the prompts according to OpenID Connect processing rules, often cumulatively.
+* **`acr_values`** (defined by {{OIDC-CORE}}): the client lists authentication context class references; the authorization server authenticates the end-user at an appropriate supported level.
+* **`grant_mode`** (defined by this specification): the client lists grant modes it accepts; the authorization server MAY produce a grant in any listed mode.
+
+In each case the request parameter is not a declaration of durable client capability. Where durable capability matters, it is registered in a corresponding client metadata field (for example, `response_types`) rather than inferred from one request. `grant_mode` follows the same convention: durable capability is declared in client metadata (see {{client-capability}}); the per-request parameter signals acceptance for the request that carries it.
+
+`grant_mode` is therefore not a wholly new kind of OAuth signal. It is one new parameter in an existing family of per-request, registry-backed value lists, with one new IANA registry governing its values. The conceptual surface added by this specification is the registry, the `deferred` value, and the grant-mode-specific disjunctive selection rule defined in {{grant-mode}}.
+
+## Relationship to Other Grant- and Response-Family Parameters
 
 The `grant_mode` parameter joins the existing `grant_*` family alongside `grant_type` (defined by {{RFC6749}}), and is orthogonal to both `grant_type` and the `response_*` family parameters:
 
 * `grant_type` expresses the kind of grant flow being executed at the token endpoint (e.g., `authorization_code`, `client_credentials`, `refresh_token`, `urn:ietf:params:oauth:grant-type:token-exchange`).
-* `grant_mode` expresses acceptable modes of the grant the authorization server produces (`deferred` is defined in this specification; additional values may be registered by other specifications).
+* `grant_mode` expresses the modes of grant the client accepts (`deferred` is defined in this specification; additional values may be registered by other specifications).
 * `response_type` expresses the kind of artifact the client expects from a successful authorization at the authorization endpoint (code, token, id_token).
 * `response_mode` expresses how the authorization endpoint response is delivered (query, fragment, form_post).
 
@@ -452,7 +579,7 @@ The following sections extend the OAuth authorization endpoint defined in {{RFC6
 
 ## Deferred Authorization Response
 
-When the authorization server determines that an authorization request cannot complete synchronously, it MAY return a deferred authorization response in place of an authorization response or authorization error response. A client signals acceptance of a deferred authorization decision by including `grant_mode=deferred` (see {{grant-mode}}) on the authorization request.
+When the authorization server determines that an authorization request cannot complete synchronously, it MAY return a deferred authorization response in place of an authorization response or authorization error response if the authorization request includes `grant_mode=deferred` (see {{grant-mode}}). The authorization server MUST NOT return a deferred authorization response for an authorization request that did not explicitly signal acceptance of authorization endpoint deferral.
 
 The authorization server MUST validate the authorization request to the extent necessary to determine eligibility for deferred processing before creating deferred processing state. This includes validating `client_id`, `redirect_uri`, `response_type`, and any other request parameters whose validation does not depend on completion of the deferred work. The authorization server MUST NOT issue a `deferred_code` for a request whose redirect URI cannot be validated.
 
@@ -584,7 +711,7 @@ When the authorization server defers processing of a token request, it returns a
 
 Before issuing a deferred code, the authorization server MUST authenticate the client when client authentication is required and MUST validate the token request to the extent necessary to determine eligibility for deferred processing. The authorization server MUST NOT issue a deferred code for a malformed request, for an unauthenticated client that is required to authenticate, or for a request that is known to be unauthorized.
 
-For unauthenticated clients, including public clients, the authorization server MUST NOT issue a deferred code unless the deferred processing state is bound to additional context that the requesting client instance MUST demonstrate on each continuation request. Acceptable bindings include DPoP {{RFC9449}}, mutual-TLS client certificate binding {{RFC8705}}, an authenticated user-agent session, a device-bound context, or an equivalent local mitigation. The binding MUST be sufficient to prevent another client instance that obtains the deferred code from completing the continuation.
+For unauthenticated clients, including public clients, the authorization server MUST NOT issue a deferred code unless the deferred processing state is bound to additional context that the requesting client instance MUST demonstrate on each continuation request. The acceptable continuation bindings are defined in the §Client Authentication subsection of {{security-considerations}}. The binding MUST be sufficient to prevent another client instance that obtains the deferred code from completing the continuation.
 
 For token endpoint originating requests, preserved PKCE {{RFC7636}} verification state alone is NOT a sufficient continuation binding. PKCE verification is performed once during evaluation of the originating token request, the `code_verifier` is consumed at that point, and continuation requests do not re-present it (see {{continuation-request}}). PKCE therefore proves the requestor of the originating token request possessed the verifier but does not authenticate the continuation requestor. PKCE MAY be combined with a sender-constraining or session-binding mechanism listed above to satisfy this requirement. The continuation binding requirements for authorization endpoint originating requests are defined separately in {{authorization-endpoint-pkce}}, where the `code_verifier` is presented for the first time on the first continuation request and can serve as the primary continuation binding.
 
@@ -593,7 +720,7 @@ The authorization server MAY return either:
 * `authorization_pending`
 * `interaction_required`
 
-This specification reuses the `authorization_pending`, `slow_down`, and `expired_token` token endpoint error codes defined by {{RFC8628}} with the generalized semantics defined in {{deferred-error-semantics}}. This specification uses the `interaction_required` error code registered by OpenID Connect {{OIDC-CORE}} and updates its registration to add token endpoint response usage for asynchronous request processing using `deferred_code`.
+This specification reuses the `authorization_pending`, `slow_down`, and `expired_token` token endpoint error codes defined by {{RFC8628}} with the generalized semantics defined in {{deferred-error-semantics}}. This specification uses the `interaction_required` error code registered by OpenID Connect {{OIDC-CORE}} and updates its registration to add token endpoint response usage for deferred request processing using `deferred_code`.
 
 The response MUST include `deferred_code` and `expires_in` parameters. The response SHOULD include an `interval` parameter unless the authorization server has no client polling expectation. When present, the `interval` parameter establishes the polling interval for the deferred request and remains in effect until replaced by a later `interval` value or modified by `slow_down`.
 
@@ -702,6 +829,8 @@ In a successful access token response returned upon deferred completion, the `ex
 
 Clients MUST NOT infer the lifetime of a deferred code from the lifetime of any access token that might be issued upon successful completion.
 
+The same parameter name `expires_in` denotes two distinct lifetimes depending on response: the deferred-code lifetime in deferred and continuation responses, and the access-token lifetime in the successful completion response. This overload is inherited from the OAuth Device Authorization Grant {{RFC8628}}, where `expires_in` similarly denotes the device code lifetime rather than an access token lifetime, and is preserved here for vocabulary continuity with that specification. Where a response includes both an issued artifact and a `deferred_code` (a partial completion response, as defined in {{partial-completion}}), the deferred-code lifetime is carried in the separate `deferred_code_expires_in` parameter defined in {{deferred-code-expires-in-parameter}} to avoid ambiguity.
+
 ## Deferred Code Expires In Parameter {#deferred-code-expires-in-parameter}
 
 The `deferred_code_expires_in` parameter indicates the remaining lifetime of the deferred code in seconds when a response includes both an issued artifact and a `deferred_code`.
@@ -712,11 +841,15 @@ In a partial completion response as defined in {{partial-completion}}, `deferred
 
 In addition to full synchronous completion (a standard token response or authorization response with no `deferred_code`) and full deferral (a deferred processing response or deferred authorization response that issues no synchronous artifact), the authorization server MAY produce a *partial completion*: a successful response that includes both an issued artifact and a `deferred_code` for continuation.
 
+Partial completion is enabled only by a higher-layer profile. The authorization server MUST NOT issue a partial completion response unless **all** of the following hold:
+
+* a higher-layer profile defines the partial-completion semantics applicable to the originating request (which artifacts may be issued partially, what "partial" means for those artifacts, how the partial nature is signaled, how a successful continuation relates to the partial artifact, and what happens if the continuation completes unsuccessfully);
+* the client has explicitly signaled support for that profile, typically via a profile-defined `grant_mode` value on the request or via profile-specific client metadata;
+* the authorization server can immediately issue an artifact reflecting currently-available authorization and expects the remainder to be resolvable asynchronously through the deferred code continuation mechanism.
+
+This specification does not define partial-completion semantics for any profile; it defines only the wire shape and the relationship to the deferred code continuation mechanism. Profiles consuming this section supply the partial-completion semantics.
+
 In a partial completion response, the `deferred_code` refers to deferred processing of the remaining (un-issued) portion of the originating request, not to the issued artifact itself. The issued artifact is fully issued and valid according to its own semantics; the `deferred_code` enables the client to continue processing for the portion that has not yet been issued.
-
-Partial completion is appropriate when the authorization server can immediately issue an artifact reflecting currently-available authorization (for example, a subset of requested scopes or a representation populated with currently-available claims) and the remainder of the authorization is expected to be resolvable asynchronously through the deferred code continuation mechanism.
-
-A profile MUST define the semantics of partial completion before its use, including which artifacts may be issued partially, what "partial" means for the artifacts in question, and how a continuation that completes successfully relates to the previously issued artifact (replacement, supplement, or upgrade). This specification does not define those semantics; it defines only the wire shape and the relationship to the deferred code continuation mechanism.
 
 ## Wire Shape
 
@@ -725,7 +858,7 @@ A partial completion response uses the success response form defined by the orig
 * For token endpoint originating requests: a standard 200 OK access token response as defined by {{RFC6749}}, including the issued artifact (e.g., `access_token`, `id_token`) and any other parameters appropriate to the originating grant type, plus `deferred_code` and `deferred_code_expires_in` parameters.
 * For authorization endpoint originating requests: the standard authorization response redirect as defined by {{RFC6749}}, including the issued artifact (e.g., `code` or `id_token` per the originating response type) and any other authorization response parameters, plus `deferred_code` and `deferred_code_expires_in` parameters conveyed in the same redirect channel as the deferred authorization response defined in {{authorization-endpoint-extensions}}.
 
-The presence of `deferred_code` in a success response signals that continuation is available; absence of `deferred_code` signals full synchronous completion. Profiles MAY define additional response parameters to mark the issued artifact as partial. A partial completion response MAY include an `interval` parameter to establish the initial polling interval for the deferred processing state; if omitted, the client follows the default polling behavior defined in {{client-behavior}} until a continuation response supplies an interval.
+The presence of `deferred_code` in a success response signals that continuation is available; absence of `deferred_code` signals full synchronous completion. Profiles MUST define how the issued artifact is marked or otherwise identifiable as partial when such marking is necessary for correct client, relying-party, or resource-server behavior. A partial completion response MAY include an `interval` parameter to establish the initial polling interval for the deferred processing state; if omitted, the client follows the default polling behavior defined in {{client-behavior}} until a continuation response supplies an interval.
 
 When a partial completion response includes an artifact that has its own subsequent processing step, such as an authorization code that can be redeemed at the token endpoint, the profile MUST define the ordering and interaction between that processing step and deferred-code continuation. In particular, the profile MUST specify whether the artifact can be redeemed immediately, whether redemption is blocked until continuation completes, and how the authorization server prevents the artifact and deferred-code continuation from producing broader authorization than the originating request allowed.
 
@@ -737,11 +870,9 @@ When deferred processing completes successfully, the continuation response retur
 
 The deferred_code lifecycle, sender-constraining requirements, security considerations, and notification semantics defined elsewhere in this specification apply unchanged to partial completion.
 
-## Applicability
+## Client Handling of Unrecognized Partial Completion
 
-Partial completion is OPTIONAL. Authorization servers that support partial completion MUST do so only when a higher-layer profile defines the partial semantics. This specification does not define a default partial-completion behavior, and authorization servers MUST NOT issue partial completions outside the scope of a profile that defines them.
-
-Clients that do not understand a profile's partial-completion semantics MUST treat the response as if `deferred_code` were absent (i.e., use the issued artifact and ignore the continuation handle). Authorization servers SHOULD therefore use partial completion only with clients that have registered or otherwise signaled support for the relevant profile.
+Clients that understand this specification but do not understand the applicable profile's partial-completion semantics MUST reject the partial completion response or treat it as unusable for the profile-specific purpose. Authorization servers MUST NOT rely on unaware clients safely ignoring the continuation handle, because the issued artifact is real and may otherwise be used without the profile-defined partial-completion constraints. The "client signaled support for the profile" precondition stated at the top of this section is intended to prevent partial completions from reaching such clients in the first place.
 
 # Deferred Code Grant Type
 
@@ -917,29 +1048,28 @@ If the deferred code is malformed, unknown, revoked, not bound to the requesting
 
 # Cancellation {#cancellation}
 
-A client MAY abandon a deferred request by revoking the deferred code using OAuth Token Revocation {{RFC7009}}.
+A client MAY abandon a deferred request by revoking the deferred code at the authorization server's revocation endpoint as defined by {{RFC7009}}. The `token` parameter value is the most recently issued deferred code; the request SHOULD include `token_type_hint=deferred_code`.
 
-The revocation request is submitted to the authorization server's revocation endpoint as defined by {{RFC7009}}. The `token` parameter value is the most recently issued deferred code. The request SHOULD include `token_type_hint=deferred_code`.
+The client MUST authenticate to the revocation endpoint with credentials, sender-constraining proof, and certificate or DPoP binding equivalent to those required for a continuation request as defined in {{continuation-request}}. If the binding does not match the deferred processing state, the authorization server MUST treat the revocation request as not authorized for that state and MUST NOT terminate it.
 
-The client MUST authenticate to the revocation endpoint with credentials equivalent to those required for a continuation request as defined in {{continuation-request}}.
+Successful revocation of a deferred processing state that has not yet completed terminates the state. Subsequent continuation requests MUST return `access_denied` when the authorization server can identify them as continuations of the canceled state; otherwise they return `invalid_grant` per {{invalid-deferred-code}}.
 
-Authorization servers that issue DPoP-bound deferred codes {{RFC9449}} MUST accept and validate DPoP proofs at the revocation endpoint for those codes; the proof key MUST match the key bound to the deferred processing state. Authorization servers that issue mutual-TLS bound deferred codes {{RFC8705}} MUST require certificate binding on the revocation request that matches the deferred processing state. If the binding does not match, the authorization server MUST treat the revocation request as not authorized for that deferred processing state and MUST NOT terminate the state.
+Revocation interacts with the completion race window as follows:
 
-If the deferred processing state is pending, waiting for interaction, or otherwise not yet complete, successful revocation terminates the deferred processing state. Subsequent continuation requests MUST return `access_denied` when the authorization server can identify the request as a continuation of the canceled deferred processing state; otherwise they return `invalid_grant` as defined in {{invalid-deferred-code}}. Revocation does not produce an access token response.
+* if processing has not completed at the time revocation is accepted, the state is terminated as described above, and the authorization server MUST NOT issue an access token response thereafter;
+* if processing completed successfully but the completion response has not yet been returned to the client, an otherwise-authorized revocation MUST suppress delivery of that completion response (subsequent continuation requests return `access_denied`);
+* if processing completed successfully and the completion response has already been returned, revocation of the deferred code MUST NOT revoke the artifacts issued by that response; those are independent credentials after delivery and are revoked through their own mechanisms;
+* if processing completed unsuccessfully before revocation, the terminal outcome is unchanged.
 
-If the deferred processing state completed successfully and the successful continuation response has already been returned to the client, revocation of the deferred code MUST NOT revoke any access token, refresh token, ID Token, authorization code, or other artifact issued by the successful completion response. Those artifacts are independent credentials after delivery and are revoked, when applicable, using their own revocation or invalidation mechanisms.
-
-If the deferred processing state completed successfully but the successful continuation response has not yet been returned to the client, a revocation request that is otherwise authorized MUST suppress delivery of the successful completion response. Subsequent continuation requests MUST return `access_denied` when the authorization server can identify the canceled state; the authorization server MUST NOT issue the access token response after accepting cancellation.
-
-If the deferred processing state completed unsuccessfully before the revocation request was processed, revocation does not change the terminal outcome. The authorization server MAY continue to return the terminal error response for that state until the deferred code expires or is purged.
-
-If the deferred code presented for revocation is unknown, expired, already revoked, or has been replaced by a rotated value, the authorization server processes the request as defined by {{RFC7009}}. Authorization servers SHOULD treat any deferred code value previously associated with the same deferred processing state as a valid revocation target when doing so does not weaken deferred code rotation or sender-constraining requirements.
-
-Authorization servers SHOULD process revocation requests in a manner that does not reveal whether the deferred code was recognized, expired, rotated, or already completed through differences in HTTP status code, response body, or response timing, consistent with {{RFC7009}} and the oracle resistance requirements in {{oracle-resistance}}.
+If the deferred code presented for revocation is unknown, expired, already revoked, or has been replaced by a rotated value, the authorization server processes the request as defined by {{RFC7009}}. Authorization servers SHOULD treat any deferred code value previously associated with the same deferred processing state as a valid revocation target when doing so does not weaken deferred code rotation or sender-constraining requirements. Authorization servers SHOULD process revocation requests in a manner that does not reveal through HTTP status, body, or timing whether the deferred code was recognized, expired, rotated, or already completed, consistent with {{RFC7009}} and {{oracle-resistance}}.
 
 # Notification {#notification}
 
-This specification defines an OPTIONAL notification mode that allows the authorization server to inform a registered client when deferred processing state changes. The notification mode is a hint mechanism intended to reduce polling latency. Clients MUST continue to obtain processing results by submitting continuation requests as defined in {{continuation-request}}; notifications convey only the affected deferred code, not result data.
+This specification defines an OPTIONAL notification mode that allows the authorization server to inform a registered client when deferred processing state changes. Notification is the substrate's built-in advisory delivery channel; it is defined in this specification rather than by a profile, and it is restricted to state-change hints (it carries only the affected `deferred_code`, not result data). Clients MUST continue to obtain processing results by submitting continuation requests as defined in {{continuation-request}}.
+
+The notification mode is in the substrate, rather than left to profiles, for two reasons. First, the polling cost reduction from a single state-change hint is achievable by every conforming authorization server without requiring a profile to invent its own mechanism. Second, defining one minimum advisory mechanism in the substrate establishes the security floor that {{advisory-delivery}} extends to richer profile-defined channels: a single bearer-credential-per-state model, an SSRF-validated client endpoint, and polling always available as an authoritative completion path. Profiles that need to deliver result metadata, deliver sender-constrained issued credentials, stream multiple events, or use a different transport define their own advisory channels under {{advisory-delivery}}.
+
+The generic hook for profile-defined advisory delivery channels in {{advisory-delivery}} permits profiles to define additional channels, which MAY carry non-authoritative result metadata subject to the requirements stated there. The notification mode defined in this section is independent of that hook and is governed by the rules in this section.
 
 The notification mode applies equally to deferred processing state created from a token endpoint originating request and to state created from an authorization endpoint originating request. For authorization endpoint originating requests, notifications can be particularly useful because the client does not otherwise hold an open connection to the authorization server and would otherwise rely entirely on polling.
 
@@ -1002,7 +1132,7 @@ The authorization server MUST NOT follow HTTP redirects from the notification en
 
 The authorization server MAY retry notification delivery using an exponential backoff. The authorization server MUST NOT depend on successful notification delivery; deferred processing state remains authoritative and is obtained through continuation requests.
 
-## Client Behavior
+## Client Behavior {#notification-client-behavior}
 
 A client that receives a notification MUST validate the bearer credential in the `Authorization` header against the most recent `notification_token` issued for the deferred code identified in the notification body. If the credential is missing, malformed, or does not match a known notification token, the client MUST reject the notification.
 
@@ -1022,6 +1152,8 @@ This specification applies to any OAuth token request and to any OAuth authoriza
 
 When an authorization server defers an originating request, it MUST preserve the security properties of the corresponding grant type or response type. Deferred processing MUST NOT make a one-time credential reusable, extend the validity of an expired credential, bypass proof requirements, or allow the client to substitute different grant inputs during continuation.
 
+Partial completion as defined in {{partial-completion}} is applicable to grant types that can produce an artifact reflecting currently-available authorization while the remainder is resolved asynchronously, subject to the profile signaling requirement stated at the top of {{partial-completion}}. The grant types described below are individually annotated where partial completion applies, does not apply, or requires additional profile-defined treatment.
+
 ## Authorization Code Grant
 
 An authorization server MAY defer processing during authorization code redemption.
@@ -1030,7 +1162,7 @@ If an authorization server defers authorization code redemption, it MUST treat t
 
 PKCE verification, including comparison of the `code_verifier` against the previously stored `code_challenge` as defined by {{RFC7636}}, MUST occur during evaluation of the originating token request, before the authorization server creates deferred processing state. The `code_verifier` is consumed at that point and MUST NOT be re-presented on continuation requests, consistent with the prohibition on resubmitting originating request parameters in {{continuation-request}}. Continuation requests rely on the PKCE verification result preserved in deferred processing state. This rule applies to deferral of authorization code redemption at the token endpoint; the rules for authorization endpoint deferral are defined in {{authorization-endpoint-pkce}}.
 
-Partial completion as defined in {{partial-completion}} is applicable to the authorization code grant: the authorization server MAY issue a partial access token covering a subset of requested scopes together with a `deferred_code` for the upgrade.
+A profile MAY define partial completion for the authorization code grant, for example by issuing a partial access token covering a subset of requested scopes together with a `deferred_code` for the upgrade.
 
 ## Refresh Token Grant
 
@@ -1040,7 +1172,7 @@ When refresh token rotation is used, the authorization server SHOULD rotate the 
 
 While deferred processing state exists for a refresh request, the authorization server MUST treat the original refresh token as suspended: it MUST NOT honor concurrent refresh requests using the same refresh token while a deferred refresh request derived from it is pending. The authorization server MUST prevent the original refresh token and the deferred processing state from together producing more tokens than a single successful synchronous refresh request would have produced.
 
-Partial completion as defined in {{partial-completion}} is NOT applicable to the refresh token grant. The refresh operation produces a replacement access token that supersedes the existing one; issuing a partial replacement followed by an upgrade would conflict with the refresh token rotation semantics described above.
+Partial completion is NOT applicable to the refresh token grant: a partial replacement followed by an upgrade would conflict with the refresh token rotation semantics described above.
 
 ## Client Credentials Grant
 
@@ -1048,7 +1180,7 @@ An authorization server MAY defer issuance pending workload attestation, enterpr
 
 For client credentials requests, deferred processing state MUST remain bound to the authenticated client and any sender-constraining or proof-of-possession material used by the originating request.
 
-Partial completion as defined in {{partial-completion}} is applicable to the client credentials grant: the authorization server MAY issue a partial access token covering a subset of requested scopes or resources together with a `deferred_code` for the upgrade.
+A profile MAY define partial completion for the client credentials grant, for example by issuing a partial access token covering a subset of requested scopes or resources together with a `deferred_code` for the upgrade.
 
 ## Token Exchange
 
@@ -1056,7 +1188,7 @@ An authorization server MAY defer processing during token exchange evaluation as
 
 For token exchange requests, deferred processing state MUST preserve the original `subject_token`, `subject_token_type`, `actor_token`, `actor_token_type`, `requested_token_type`, the requested `resource` values defined by {{RFC8707}}, the requested `audience` values, and `scope` used to evaluate the exchange. Continuation requests MUST NOT substitute replacement tokens or change requested token characteristics.
 
-Partial completion as defined in {{partial-completion}} is applicable to token exchange: the authorization server MAY issue a partial exchanged token covering a subset of requested resources, audiences, or scopes together with a `deferred_code` for the upgrade.
+A profile MAY define partial completion for token exchange, for example by issuing a partial exchanged token covering a subset of requested resources, audiences, or scopes together with a `deferred_code` for the upgrade.
 
 ### Example
 
@@ -1087,7 +1219,7 @@ resource=https://api.example.com
 
 When the originating request includes the `authorization_details` parameter defined by {{RFC9396}}, deferred processing state MUST preserve the originally requested authorization details. Continuation requests MUST NOT include `authorization_details`, and the authorization server MUST evaluate completion against the originally requested authorization details. Authorization decisions reached during deferred processing MAY narrow the granted authorization details but MUST NOT broaden them beyond what the originating request expressed.
 
-Partial completion as defined in {{partial-completion}} is applicable to rich authorization requests: the authorization server MAY issue a partial access token covering a subset of the requested authorization details together with a `deferred_code` for the upgrade. Profiles using this combination MUST define how to express which authorization details are present in the partial artifact and how the upgrade extends them.
+A profile MAY define partial completion for rich authorization requests, for example by issuing a partial access token covering a subset of the requested authorization details together with a `deferred_code` for the upgrade. Profiles using this combination MUST define how to express which authorization details are present in the partial artifact and how the upgrade extends them.
 
 ## Assertion Grants
 
@@ -1095,7 +1227,7 @@ An authorization server MAY defer processing during assertion grant evaluation a
 
 For assertion grants, deferred processing state MUST preserve assertion validation results and the original assertion value or an equivalent protected reference to it. Deferral MUST NOT extend the validity period of an expired assertion or permit replay of the assertion outside the deferred processing state.
 
-Partial completion as defined in {{partial-completion}} is applicable to assertion grants when the assertion authorizes a subset of requested authorization that can be issued immediately, with the remainder resolvable asynchronously.
+A profile MAY define partial completion for assertion grants when the assertion authorizes a subset of requested authorization that can be issued immediately, with the remainder resolvable asynchronously.
 
 ### JWT Bearer Example
 
@@ -1124,9 +1256,9 @@ assertion=eyJhbGciOi...
 
 The following OAuth Authorization Server Metadata parameters are defined.
 
-## Asynchronous Request Processing Supported Metadata
+## Deferred Code Processing Supported Metadata
 
-The `deferred_code_processing_supported` metadata parameter is a Boolean value indicating support for asynchronous request processing using `deferred_code`.
+The `deferred_code_processing_supported` metadata parameter is a Boolean value indicating support for deferred request processing using `deferred_code` as defined in this specification.
 
 If omitted, the default value is `false`.
 
@@ -1186,7 +1318,7 @@ When `true`, the authorization server MAY deliver notifications to clients that 
 }
 ~~~
 
-# Security Considerations
+# Security Considerations {#security-considerations}
 
 Implementations MUST follow the OAuth 2.0 Security Best Current Practice {{RFC9700}} in addition to the requirements in this section.
 
@@ -1216,11 +1348,18 @@ When DPoP nonces {{RFC9449}} are used, the authorization server MAY require a fr
 
 The authorization server MUST require client authentication equivalent to the originating request when the originating request used client authentication.
 
-For unauthenticated clients, including public clients, the authorization server MUST require the continuation request to identify the same client as the originating request when a client identifier was present. Client identification alone does not authenticate a public client or prove possession of the same client instance. Authorization servers MUST bind deferred processing state to additional proof or context that the requesting client instance demonstrates on each continuation request, such as DPoP proof {{RFC9449}}, mutual-TLS client certificate binding {{RFC8705}}, an authenticated user-agent session, device-bound context, or other sender-constraining material applicable to the originating request.
+For unauthenticated clients, including public clients, the authorization server MUST require the continuation request to identify the same client as the originating request when a client identifier was present. Client identification alone does not authenticate a public client or prove possession of the same client instance. Authorization servers MUST bind deferred processing state to additional proof or context that the requesting client instance demonstrates on each continuation request. Acceptable bindings include the following, in approximate order of preference:
 
-For token endpoint originating requests, preserved PKCE {{RFC7636}} verification state is NOT, by itself, a sufficient continuation binding for public clients: the `code_verifier` is consumed during the originating token request and is not re-presented on continuation requests, so PKCE state cannot authenticate the continuation requestor. PKCE MAY be combined with one of the bindings above but does not substitute for one.
+* **DPoP {{RFC9449}}.** The originating request carries a DPoP proof; the deferred processing state is bound to the DPoP public key thumbprint; each continuation request carries a fresh DPoP proof bearing the same key. This is the preferred binding for public clients and is RECOMMENDED for any deployment that can require DPoP.
+* **Mutual-TLS client certificate binding {{RFC8705}}.** The originating request is presented over a TLS connection authenticated with a client certificate; the deferred processing state is bound to the certificate thumbprint; each continuation request is presented over a TLS connection authenticated with the same certificate.
+* **Authenticated user-agent session.** When the originating request is associated with an authenticated session at the authorization server (for example, a first-party browser session bound to a session cookie issued by the authorization server, or a platform-level account session managed by the operating system), the deferred processing state is bound to that session and continuation requests authenticated by the same session are accepted. This binding is meaningful only for clients that share the user-agent context with the authorization server, and only as long as the session remains valid.
+* **Device-bound context.** When the originating request is associated with a device key managed by platform attestation (for example, a key in a hardware-backed key store available to the client through an OS API), the deferred processing state is bound to that key and continuation requests presenting a proof of possession of the same key are accepted. The mechanism by which the device key is presented (a DPoP proof using the device key, a signed challenge, or another mechanism) is defined by the platform or by a higher-layer profile.
 
-For authorization endpoint originating requests, the `code_verifier` is presented on the first continuation request as defined in {{authorization-endpoint-pkce}}, and that verifier MAY serve as the continuation binding for the originating client instance. Authorization servers MAY still require an additional sender-constraining or session-binding mechanism for high-sensitivity originating requests or for continuation requests after the first.
+For authorization endpoint originating requests, the PKCE {{RFC7636}} `code_verifier` is presented on the first continuation request as defined in {{authorization-endpoint-pkce}} and MAY serve as an additional continuation binding for the originating client instance, since it authenticates possession of the verifier that produced the `code_challenge` carried on the originating request. Authorization servers MAY still require one of the bindings above for high-sensitivity originating requests or for continuation requests after the first.
+
+PKCE alone is NOT a sufficient continuation binding for public clients on token endpoint originating requests. The `code_verifier` is consumed during the originating token request and is not re-presented on continuation requests, so PKCE state cannot authenticate the continuation requestor in that case. PKCE MAY be combined with one of the bindings above but does not substitute for one.
+
+Authorization servers MUST NOT defer originating requests from public clients without an applicable continuation binding — one of the bindings above for token endpoint originating requests, or one of the bindings above or the PKCE-on-first-continuation binding described in {{authorization-endpoint-pkce}} for authorization endpoint originating requests. A bearer-only `deferred_code` issued to a public client without an accompanying continuation binding is recoverable by any party that observes the value (through logs, intermediaries, the redirect channel, or other disclosure paths) and is not safe to honor.
 
 Authorization servers MUST NOT allow a continuation request to weaken client authentication, sender-constraining, or proof-of-possession requirements from the originating request.
 
@@ -1371,7 +1510,7 @@ Deferred processing can retain information from the originating request, includi
 
 Interaction URIs and deferred codes SHOULD NOT reveal user identifiers, client identifiers, resource identifiers, transaction details, or policy decisions to parties that can observe browser history, logs, referrer headers, or network metadata.
 
-# IANA Considerations
+# IANA Considerations {#iana-considerations}
 
 ## OAuth Parameters Registry
 
@@ -1465,7 +1604,7 @@ Metadata name:
 : `deferred_code_processing_supported`
 
 Metadata description:
-: Boolean value indicating support for asynchronous request processing using `deferred_code`.
+: Boolean value indicating support for deferred request processing using `deferred_code`.
 
 Change controller:
 : IETF
@@ -1559,7 +1698,7 @@ The error names `authorization_pending`, `slow_down`, and `expired_token` are al
 
 The error name `access_denied` is registered by {{RFC6749}} for authorization endpoint use and is extended to token endpoint use by {{RFC8628}}. This specification relies on the {{RFC8628}} extension and applies `access_denied` to deferred processing state that has terminated unsuccessfully. No registry changes are required.
 
-This specification updates the existing `interaction_required` registration in the "OAuth Extensions Error Registry" established by {{RFC6749}}. That error name was originally registered by OpenID Connect {{OIDC-CORE}} for authorization endpoint use. This specification adds token endpoint response usage for asynchronous request processing using `deferred_code`.
+This specification updates the existing `interaction_required` registration in the "OAuth Extensions Error Registry" established by {{RFC6749}}. That error name was originally registered by OpenID Connect {{OIDC-CORE}} for authorization endpoint use. This specification adds token endpoint response usage for deferred request processing using `deferred_code`.
 
 Error name:
 : `interaction_required`
@@ -1568,7 +1707,7 @@ Error usage location:
 : authorization endpoint response, token endpoint response
 
 Related protocol extension:
-: OpenID Connect, asynchronous request processing using `deferred_code`
+: OpenID Connect, deferred request processing using `deferred_code`
 
 Change controller:
 : OpenID Foundation Artifact Binding Working Group; IETF for token endpoint response usage defined by this document
@@ -1580,15 +1719,17 @@ Specification document(s):
 
 # Design Rationale
 
-This specification defines a generic asynchronous request processing substrate for OAuth: a single continuation reference, polling state machine, and completion vocabulary that apply uniformly across originating endpoints. The originating request may be a token request at the token endpoint or an authorization request at the authorization endpoint; the continuation interface is the token endpoint in both cases.
+This specification defines a generic deferred processing substrate for OAuth: a single continuation reference, polling state machine, and completion vocabulary that apply uniformly across originating endpoints. The originating request may be a token request at the token endpoint or an authorization request at the authorization endpoint; the continuation interface is the token endpoint in both cases.
 
-## Why a Unified Async Layer
+## Why a Unified Deferred Processing Layer
 
-OAuth's existing async story is fragmented. The OAuth Device Authorization Grant {{RFC8628}} defines its own continuation handle (`device_code`) and polling state machine for input-constrained devices. {{CIBA}} defines its own continuation handle (`auth_req_id`) and a separate backchannel authentication endpoint for end-user authentication. {{JWT-GRANT-INTERACTION}} defines interaction semantics specific to JWT bearer requests. {{RFC8693}} token exchange defines its own typed-token response shape. The OpenID for Verifiable Credential Issuance specification defines a `pre-authorized_code` for credential-issuance flows with its own polling state machine. Each addresses a particular origination case with its own vocabulary, its own state machine, and its own error semantics.
+OAuth's existing deferred processing story is fragmented. The OAuth Device Authorization Grant {{RFC8628}} defines its own continuation handle (`device_code`) and polling state machine for input-constrained devices. {{CIBA}} defines its own continuation handle (`auth_req_id`) and a separate backchannel authentication endpoint for end-user authentication. {{JWT-GRANT-INTERACTION}} defines interaction semantics specific to JWT bearer requests. {{RFC8693}} token exchange defines its own typed-token response shape. The OpenID for Verifiable Credential Issuance specification defines a `pre-authorized_code` for credential-issuance flows with its own polling state machine. Each addresses a particular origination case with its own vocabulary, its own state machine, and its own error semantics, but the underlying pattern is the same: a continuation reference, a polling state machine, and a completion vocabulary.
 
-This specification factors those patterns into a single substrate. The same `deferred_code`, the same continuation grant type, the same `authorization_pending` / `interaction_required` / `slow_down` / `expired_token` vocabulary, and the same polling state machine apply whether the originating request was a token endpoint request, an authorization endpoint request, or a future deferral case that has not yet been standardized. Existing flows such as Device Authorization Grant and CIBA can be understood as profiles of this substrate that pre-date its generalization.
+This specification generalizes that pattern into a single substrate. The same `deferred_code`, the same continuation grant type, the same `authorization_pending` / `interaction_required` / `slow_down` / `expired_token` vocabulary, and the same polling state machine apply whether the originating request was a token endpoint request, an authorization endpoint request, or a future deferral case that has not yet been standardized.
 
-The substrate framing also makes adding deferral cheap. A new deferral case requires defining only how the initial `deferred_code` is delivered (response shape, conveyance channel) and any case-specific eligibility rules; it inherits the continuation, completion, cancellation, notification, and metadata machinery unchanged.
+The substrate framing makes adding deferral cheap. A new deferral case requires defining only how the initial `deferred_code` is delivered (response shape, conveyance channel) and any case-specific eligibility rules; it inherits the continuation, completion, cancellation, notification, and metadata machinery unchanged.
+
+The existing mechanisms named above are not amended or replaced by this specification. They were authored independently and continue to operate under their own RFCs. This specification's relationship to them is retrospective: they predate this generalization and are not profiles of it. The substrate framing is forward-looking: future OAuth deferred processing patterns can be defined as profiles of this substrate rather than as independent specifications inventing their own continuation handles, vocabularies, and state machines.
 
 ## Why Token Endpoint Continuation Regardless of Originating Endpoint
 
@@ -1605,7 +1746,7 @@ Deferred processing responses at the token endpoint use the OAuth token endpoint
 The error encoding has several properties that the typed-token alternative does not:
 
 * **Uniform applicability across grant types and endpoints.** Every OAuth grant type defines a 400-error response shape with the same structure (`error`, `error_description`, `error_uri`). The error encoding reuses that shape unchanged for any originating flow, including grant types that do not otherwise emit typed-token responses such as `authorization_code`, `client_credentials`, and `refresh_token`. A typed-token deferral encoding would require those grant types to adopt a token-exchange-shaped response solely to recognize deferral.
-* **Naïve-client safety.** OAuth client libraries dispatch on HTTP status. Under the 400-error encoding, a client unaware of this specification observes an unrecognized OAuth error and abandons cleanly. Under a 200-encoded typed-token alternative, an unaware client could populate its `access_token` slot with a deferral artifact and attempt to use it as a bearer credential, producing 401 responses at resource servers and potentially driving the client to re-run the original authorization flow.
+* **Naïve-client safety as a defense-in-depth property.** Under {{client-capability}}, an authorization server SHOULD NOT defer originating requests from a client that has neither registered `deferred_code_processing_supported=true` nor sent an applicable `grant_mode` value on the request, so an unaware client is not normally exposed to a deferred response in the first place. The 400-error encoding provides a second line of safety for cases where deferral nonetheless reaches an unaware client (for example, a client implementation that registered the metadata but whose runtime code path does not actually handle the deferred-response shape): OAuth client libraries dispatch on HTTP status, and an unrecognized OAuth error is abandoned cleanly. Under a 200-encoded typed-token alternative, an unaware client could populate its `access_token` slot with a deferral artifact and attempt to use it as a bearer credential, producing 401 responses at resource servers and potentially driving the client to re-run the original authorization flow.
 * **Field separation.** The deferred handle is in a field structurally distinct from `access_token`, eliminating the possibility that a deferral artifact is mistakenly used as a bearer credential.
 * **Composition with other 400-encoded controls.** DPoP nonce challenges {{RFC9449}}, mutual-TLS binding mismatches {{RFC8705}}, and PKCE failures {{RFC7636}} all surface as 400 errors. The deferred processing response shares this response pipeline; a single 400-handling path on the client covers all of them.
 * **Natural fit for the interaction-required signal.** The `interaction_required` error code is already registered in the OAuth Extensions Error Registry by {{OIDC-CORE}}. Encoding "external interaction is required before processing can continue" as a token endpoint error code aligned with the existing interaction-required vocabulary keeps the interaction signal native to the protocol rather than profile-specific.
@@ -1614,7 +1755,18 @@ Authorization servers operating observability tooling that treats 4xx responses 
 
 Neither status code is semantically clean for the underlying state: 200 implies a successful issuance that has not occurred, and 400 implies a client error that did not happen. Both are wire-compatibility compromises against existing OAuth precedents. This specification chooses 400 to align with the polling encoding of {{RFC8628}} and to obtain the uniformity, safety, and composition properties listed above.
 
-# Relationship to Existing OAuth Asynchronous Mechanisms
+## Why the Grant Mode Parameter
+
+This specification defines one new request parameter, `grant_mode`, and one new IANA registry to govern its values. The parameter is justified by the following points:
+
+* **The substrate ships with one value (`deferred`) but is designed to host more.** Per-request signaling for the `deferred` value alone is largely redundant with static client metadata (see {{client-capability}}): a client whose metadata permits deferral can have a request deferred by authorization server policy even without `grant_mode=deferred` on the request. The parameter earns most of its weight from profile-defined values registered through the "OAuth Grant Mode Values" registry. Each such value (for example, partial-completion modes, push-delivery acceptance, or revisable-grant acceptance) is a per-request preference that static metadata cannot represent; the registry collects them in one place rather than letting each profile invent its own request parameter.
+* **The wire shape is conventional, not novel.** The space-delimited, disjunctive, AS-selects-among-them semantics defined in {{grant-mode}} are inherited from `scope`, `response_type`, `prompt`, and `acr_values`. {{grant-mode-precedents}} walks through the mapping. The conceptual surface added by this specification is the new registry and the `deferred` value; the multi-value semantics are not new.
+* **A single parameter avoids parameter explosion as profiles are added.** Without `grant_mode`, each profile that needs per-request opt-in would either define its own request parameter (multiplying the OAuth request surface) or overload `scope` (which is reserved for authorization, not delivery mode). A single registry-governed parameter is the cheapest extension point compatible with OAuth precedent.
+* **`grant_mode=deferred` is retained for forward compatibility.** A client that wishes to opt into deferral for a specific request without statically registering capability uses `grant_mode=deferred` to do so. The value also positions the substrate as the registry's anchor and demonstrates the parameter's per-request signaling shape, on which profile-defined values are modeled.
+
+The two-channel arrangement (durable capability in client metadata, per-request acceptance in `grant_mode`) follows the precedent of `response_type` and its corresponding client metadata field `response_types`.
+
+# Relationship to Existing OAuth Asynchronous Mechanisms {#relationship-to-existing-oauth-asynchronous-mechanisms}
 
 OAuth and OpenID Connect already define several mechanisms involving deferred completion, polling, or out-of-band interaction. This specification generalizes the underlying pattern: a continuation reference, a polling state machine, and a completion vocabulary, independent of how the originating request was made. Existing mechanisms can be understood as predecessors that solved specific cases before this generalization existed.
 
@@ -1657,6 +1809,14 @@ The key differences are:
 * Applicability: CIBA defines a specific authentication flow. This specification defines a general suspension and continuation pattern for OAuth originating requests.
 
 An authorization server that supports both CIBA and this specification SHOULD use CIBA when the client is initiating an OpenID Connect backchannel authentication flow for an end-user. It SHOULD use this specification when an existing OAuth originating request cannot complete synchronously and the authorization server needs to preserve and later resume evaluation of that request.
+
+Concretely, an authorization server that already supports CIBA gains the following coverage by also implementing this specification:
+
+* **Authorization endpoint deferral.** CIBA does not address the authorization endpoint at all. This specification defines a deferred authorization response delivered through the redirect channel, allowing deferral of front-channel flows that require step-up authentication, external approval, or other deferred completion.
+* **Non-end-user originating requests.** CIBA is centered on end-user authentication. This specification applies to `client_credentials`, token exchange, refresh token, rich authorization request, and assertion grants, none of which CIBA covers.
+* **Deferred completion of existing OAuth flows.** CIBA replaces the originating request mechanism with a separate backchannel authentication endpoint. This specification preserves the originating request and adds deferred completion to it, so an existing client's interaction with the authorization endpoint or token endpoint can be deferred without protocol substitution.
+
+The reverse coverage relationship is also worth stating plainly. CIBA defines a push delivery mode in which the authorization server delivers a token response, including bearer access tokens, to a client-registered endpoint. This specification's advisory delivery rules ({{advisory-delivery}}) forbid bearer credentials in advisory payloads; profile-defined advisory channels under this specification MAY deliver sender-constrained credentials (DPoP-bound or mTLS-bound) but MUST NOT deliver bearer access tokens, bearer refresh tokens, or authorization codes. A use case that requires push delivery of bearer credentials is outside the scope of this specification and SHOULD use CIBA push mode or another mechanism designed for that case. A use case requiring push delivery of sender-constrained credentials MAY be addressed by a profile under {{advisory-delivery}}.
 
 Higher-layer profiles MAY combine this specification with OpenID Connect semantics, but doing so does not make the deferred code grant type equivalent to the CIBA grant type. A profile that needs CIBA behavior, including backchannel authentication endpoint processing, `auth_req_id`, delivery modes, or ID Token authentication result semantics, SHOULD use or profile CIBA directly.
 
@@ -1874,6 +2034,30 @@ Pragma: no-cache
 ~~~
 
 No authorization code was issued at any point; the deferred code carried continuation state across both the front-channel and back-channel portions of the flow.
+
+# Profile Author Checklist
+
+A higher-layer profile of this specification SHOULD answer the following questions to demonstrate fit with the substrate's extension model. The checklist is intended as guidance for profile authors; it does not impose normative requirements beyond those already stated in the body of this specification.
+
+1. **Grant Mode value.** Does the profile introduce a new acceptable grant mode? If so, register a value in the "OAuth Grant Mode Values" registry and specify how it interacts with `deferred` and any other registered values.
+
+2. **Abstract state.** Does the profile introduce a new externally-observable state extending the lifecycle in {{abstract-state-status}}? If so, what token endpoint response distinguishes it (typically a profile-defined error code value registered in the "OAuth Extensions Error Registry")? Profile-defined states MUST satisfy the state-distinguishability obligation and the substrate guarantees stated in {{substrate-invariants}}.
+
+3. **Response parameters.** Does the profile introduce new response parameters? If so, register them in the appropriate OAuth registry (typically the "OAuth Parameters Registry") and specify how they compose with parameters defined by other profiles that may apply to the same response.
+
+4. **Parameter-update mechanism.** Does the profile define a mechanism for updating parameters preserved in the deferred processing state? If so, specify the submission channel (PAR per {{RFC9126}}, a profile-defined endpoint, or another mechanism), the binding between submissions and the deferred processing state (e.g., a profile-defined handle), and the narrowing comparison rules per parameter type. The mechanism MUST satisfy the narrowing-only constraint stated in {{continuation-request}}.
+
+5. **Advisory delivery channel.** Does the profile define a mechanism for delivering deferred processing state transitions, completion indications, non-authoritative result metadata, or sender-constrained issued credentials to the client through a channel distinct from continuation polling (push, streaming, or otherwise)? If so, specify the delivery transport, the credential authenticating each delivery to the client, the binding between deliveries and the deferred processing state, and (if a new authorization server endpoint is introduced) the AS metadata identifying it. The mechanism MUST preserve polling at the token endpoint as an available authoritative completion path and MUST satisfy the requirements in {{advisory-delivery}}, including the bearer-credential exclusions and the additional requirements for credential delivery (sender-constraining at issuance, freshness metadata, cancellation handling, and polling-equivalence) when the channel carries credentials.
+
+6. **Client capability.** Does the profile require client opt-in beyond the substrate-level `deferred_code_processing_supported` metadata? If so, define profile-specific client metadata and specify its interaction with the substrate-level capability flag.
+
+7. **Authorization server metadata.** Profiles SHOULD register an AS metadata flag in the "OAuth Authorization Server Metadata" registry so clients can discover support for the profile.
+
+8. **Security considerations.** Profile authors SHOULD document security considerations specific to their profile, including any new attack surface introduced by profile-defined mechanisms, deferred-code or handle lifetime considerations beyond the base specification's guidance, and any additional sender-constraining or auditing requirements.
+
+9. **Composition with other profiles.** If multiple profiles can apply to the same request, the profile SHOULD specify precedence and composition rules, particularly for grant_mode values present together and response parameters appearing together.
+
+The proposals/ directory in this specification's repository contains worked examples illustrating both simple profiles (single new grant_mode value, reuse of partial completion) and complex profiles (new state, new response parameters, new parameter-update mechanism layered on the substrate's generic carve-out).
 
 # Acknowledgements
 

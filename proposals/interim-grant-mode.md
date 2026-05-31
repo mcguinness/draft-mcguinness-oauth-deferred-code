@@ -1,4 +1,4 @@
-# Interim Partial Completion for OAuth Asynchronous Request Processing
+# Interim Partial Completion for OAuth Deferred Request Processing
 
 ## Status
 
@@ -6,7 +6,7 @@ Proposal. This document defines a higher-layer profile of [draft-mcguinness-oaut
 
 ## Abstract
 
-This proposal defines an interim partial-completion profile for OAuth asynchronous request processing. The profile consists of the `interim` value for the `grant_mode` parameter and replacement semantics for a partial response artifact returned together with a `deferred_code`. It allows a client to accept an initial response artifact (typically an OpenID Connect ID Token populated with currently-verified claims) and use the substrate's continuation polling mechanism to obtain the complete representation later.
+This proposal defines an interim partial-completion profile for OAuth deferred request processing. The profile consists of the `interim` value for the `grant_mode` parameter and replacement semantics for a partial response artifact returned together with a `deferred_code`. It allows a client to accept an initial response artifact (typically an OpenID Connect ID Token populated with currently-verified claims) and use the substrate's continuation polling mechanism to obtain the complete representation later.
 
 The motivating use case is OpenID Connect identity verification flows where document review can take hours or days but the OpenID Provider can return preliminary claims (verified email, name) immediately while extended verification proceeds asynchronously.
 
