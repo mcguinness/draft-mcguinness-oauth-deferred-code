@@ -294,13 +294,13 @@ Expired:
 : The deferred processing state or deferred code is no longer valid due to expiration. The authorization server returns `expired_token`.
 
 Invalid:
-: The deferred code cannot be used because it is malformed, unknown, revoked, not bound to the requesting client, or otherwise invalid. The authorization server returns `invalid_grant`. Deferred processing state terminated by client-initiated cancellation as defined in {{cancellation}} is observed externally as Invalid.
+: The deferred code cannot be used because it is malformed, unknown, revoked, not bound to the requesting client, or otherwise invalid. The authorization server returns `invalid_grant`. Deferred processing state terminated by client-initiated cancellation as defined in {{cancellation}} is observed externally as Denied when the authorization server can still identify the canceled state, or Invalid when the deferred code no longer identifies retained state.
 
 The authorization server MAY transition between Pending and Interaction Required more than once. Complete, Denied, Expired, and Invalid are terminal from the client's perspective.
 
 # Deferred Code Semantics {#deferred-code-semantics}
 
-A `deferred_code` is an opaque continuation reference representing deferred processing state associated with a previously submitted originating request. The originating request is either a token request submitted to the token endpoint or an authorization request submitted to the authorization endpoint.
+A `deferred_code` is an opaque reference that enables the client to continue processing of a previously submitted originating request whose evaluation has been deferred by the authorization server. The originating request is either a token request submitted to the token endpoint or an authorization request submitted to the authorization endpoint. The `deferred_code` is the client-visible handle through which the client observes and advances the deferred processing state; it is not itself the state and does not by itself convey processing status or result data.
 
 A `deferred_code`:
 
@@ -347,7 +347,7 @@ The authorization server communicates deferred processing state to the client th
 
 A client that receives a deferred processing response MUST NOT treat the response as successful token issuance. The client can either abandon the deferred request or submit continuation requests according to this specification.
 
-The client SHOULD wait at least the number of seconds indicated by the `interval` parameter before submitting a continuation request. If no `interval` value is provided, the client SHOULD use a reasonable default polling interval and apply backoff after repeated pending responses.
+The client SHOULD wait at least the number of seconds indicated by the most recent `interval` parameter before submitting a continuation request. If no `interval` value has been provided for the deferred request, the client SHOULD use a reasonable default polling interval and apply backoff after repeated pending responses. Once an `interval` value has been received, the client MUST retain that value for subsequent continuation requests unless the authorization server provides a replacement `interval` value or returns `slow_down`.
 
 The client MUST use the most recent deferred code value returned by the authorization server. If a continuation response includes a replacement deferred code, the client MUST discard the previous value and use the replacement value for subsequent continuation requests.
 
@@ -540,7 +540,7 @@ The authorization server MAY return either:
 
 This specification reuses the `authorization_pending`, `slow_down`, and `expired_token` token endpoint error codes defined by {{RFC8628}} with the generalized semantics defined in {{deferred-error-semantics}}. This specification uses the `interaction_required` error code registered by OpenID Connect {{OIDC-CORE}} and updates its registration to add token endpoint response usage for deferred code processing.
 
-The response MUST include `deferred_code` and `expires_in` parameters. The response SHOULD include an `interval` parameter unless the authorization server has no client polling expectation.
+The response MUST include `deferred_code` and `expires_in` parameters. The response SHOULD include an `interval` parameter unless the authorization server has no client polling expectation. When present, the `interval` parameter establishes the polling interval for the deferred request and remains in effect until replaced by a later `interval` value or modified by `slow_down`.
 
 These responses use HTTP status code `400 Bad Request` and the error response encoding defined for token endpoint error responses in {{RFC6749}}, consistent with the polling encoding of {{RFC8628}}. The error response form is used for non-failure conditions such as `authorization_pending`, `interaction_required`, and `slow_down` to preserve wire-level compatibility with existing OAuth token endpoint error parsing.
 
@@ -607,7 +607,7 @@ The response MUST include an `interaction_uri` parameter.
 
 ## Deferred Code Parameter
 
-The `deferred_code` parameter is an opaque continuation reference representing deferred processing state.
+The `deferred_code` parameter is an opaque reference that enables the client to continue processing of a deferred originating request, as defined in {{deferred-code-semantics}}.
 
 Clients MUST treat the value as opaque.
 
@@ -633,7 +633,7 @@ The authorization server MUST NOT require clients to parse the `interaction_uri`
 
 ## Interval Parameter
 
-The `interval` parameter indicates the minimum number of seconds the client SHOULD wait before submitting another continuation request.
+The `interval` parameter indicates the minimum number of seconds the client SHOULD wait before submitting another continuation request. The value is stateful for a deferred request: once received, it remains in effect for subsequent continuation requests until the authorization server returns a replacement `interval` value or the client is required to increase the interval after a `slow_down` response.
 
 If the client polls more frequently than permitted by the authorization server, the authorization server MAY return `slow_down` as defined by {{RFC8628}} or another token endpoint error response appropriate to the condition.
 
@@ -659,7 +659,7 @@ The deferred code grant type MUST NOT:
 * expand requested authorization,
 * change requested resources,
 * alter sender-constraining requirements,
-* change the authenticated client identity associated with the original request.
+* change the authenticated client identity associated with the originating request.
 
 The authorization server MUST bind the deferred code to the originating request and its associated security context.
 
@@ -697,7 +697,7 @@ When the client uses a client authentication mechanism that requires a fresh cre
 
 If the originating request included a valid DPoP proof {{RFC9449}}, the authorization server MUST bind the deferred processing state to the DPoP public key thumbprint. Each continuation request MUST include a valid DPoP proof for the token endpoint, and the DPoP proof key MUST match the key bound to the deferred processing state. If the DPoP proof is invalid, the authorization server returns the error response defined by {{RFC9449}}. If the proof is valid but does not match the deferred processing state binding, the authorization server MUST reject the continuation request with `invalid_grant`.
 
-If the originating request used mutual-TLS client certificate binding {{RFC8705}}, the authorization server MUST bind the deferred processing state to the certificate or certificate thumbprint used for the original request. Each continuation request MUST use certificate binding that matches the deferred processing state. If the certificate binding does not match, the authorization server MUST reject the continuation request with `invalid_grant`.
+If the originating request used mutual-TLS client certificate binding {{RFC8705}}, the authorization server MUST bind the deferred processing state to the certificate or certificate thumbprint used for the originating request. Each continuation request MUST use certificate binding that matches the deferred processing state. If the certificate binding does not match, the authorization server MUST reject the continuation request with `invalid_grant`.
 
 If the access token produced by successful completion is sender-constrained, the confirmation or binding material for that access token MUST be derived from the originating request and continuation security context. The authorization server MUST NOT allow a continuation request to replace sender-constraining key material from the originating request.
 
@@ -722,7 +722,7 @@ The authorization server MUST verify that the deferred code is valid, unexpired,
 
 If processing remains incomplete, the authorization server returns a token endpoint error response with `authorization_pending`.
 
-The response MUST include an `expires_in` parameter. The response MUST include a `deferred_code` parameter when the authorization server rotates the deferred code, including the cases in which rotation is required by {{deferred-code-semantics}}; the client MUST discard the previous value and use the replacement. Otherwise the response MAY include a `deferred_code` parameter, and if omitted, the client continues to use the deferred code value from the continuation request.
+The response MUST include an `expires_in` parameter. The response MUST include a `deferred_code` parameter when the authorization server rotates the deferred code, including the cases in which rotation is required by {{deferred-code-semantics}}; the client MUST discard the previous value and use the replacement. Otherwise the response MAY include a `deferred_code` parameter, and if omitted, the client continues to use the deferred code value from the continuation request. The response MAY include an `interval` parameter to replace the polling interval currently retained by the client; if omitted, the client's current interval remains in effect.
 
 ~~~ json
 {
@@ -737,7 +737,7 @@ The response MUST include an `expires_in` parameter. The response MUST include a
 
 If external interaction is required before processing can continue, the authorization server returns a token endpoint error response with `interaction_required`.
 
-The response MUST include an `expires_in` parameter and an `interaction_uri` parameter. The response MUST include a `deferred_code` parameter when the authorization server rotates the deferred code, including the cases in which rotation is required by {{deferred-code-semantics}}; the client MUST discard the previous value and use the replacement. Otherwise the response MAY include a `deferred_code` parameter, and if omitted, the client continues to use the deferred code value from the continuation request.
+The response MUST include an `expires_in` parameter and an `interaction_uri` parameter. The response MUST include a `deferred_code` parameter when the authorization server rotates the deferred code, including the cases in which rotation is required by {{deferred-code-semantics}}; the client MUST discard the previous value and use the replacement. Otherwise the response MAY include a `deferred_code` parameter, and if omitted, the client continues to use the deferred code value from the continuation request. The response MAY include an `interval` parameter to replace the polling interval currently retained by the client; if omitted, the client's current interval remains in effect.
 
 ~~~ json
 {
@@ -756,7 +756,7 @@ If the client submits continuation requests more frequently than permitted, the 
 
 The client MUST increase its polling interval before submitting another continuation request. The new interval MUST be at least the larger of any `interval` value provided in the response and the previously used interval increased by 5 seconds. The unconditional 5-second increase preserves the polling behavior defined by {{RFC8628}}.
 
-The response MUST include an `expires_in` parameter. The response MUST include a `deferred_code` parameter when the authorization server rotates the deferred code, including the cases in which rotation is required by {{deferred-code-semantics}}; the client MUST discard the previous value and use the replacement. Otherwise the response MAY include a `deferred_code` parameter, and if omitted, the client continues to use the deferred code value from the continuation request.
+The response MUST include an `expires_in` parameter. The response MUST include a `deferred_code` parameter when the authorization server rotates the deferred code, including the cases in which rotation is required by {{deferred-code-semantics}}; the client MUST discard the previous value and use the replacement. Otherwise the response MAY include a `deferred_code` parameter, and if omitted, the client continues to use the deferred code value from the continuation request. If the response includes an `interval` parameter, the client's retained polling interval becomes the larger of that value and the previously retained interval increased by 5 seconds; if omitted, the client's retained polling interval increases by 5 seconds.
 
 ~~~ json
 {
@@ -825,9 +825,17 @@ The client MUST authenticate to the revocation endpoint with credentials equival
 
 Authorization servers that issue DPoP-bound deferred codes {{RFC9449}} MUST accept and validate DPoP proofs at the revocation endpoint for those codes; the proof key MUST match the key bound to the deferred processing state. Authorization servers that issue mutual-TLS bound deferred codes {{RFC8705}} MUST require certificate binding on the revocation request that matches the deferred processing state. If the binding does not match, the authorization server MUST treat the revocation request as not authorized for that deferred processing state and MUST NOT terminate the state.
 
-Successful revocation terminates the deferred processing state. Subsequent continuation requests MUST be rejected with `invalid_grant`. Revocation does not produce an access token response.
+If the deferred processing state is pending, waiting for interaction, or otherwise not yet complete, successful revocation terminates the deferred processing state. Subsequent continuation requests MUST return `access_denied` when the authorization server can identify the request as a continuation of the canceled deferred processing state; otherwise they return `invalid_grant` as defined in {{invalid-deferred-code}}. Revocation does not produce an access token response.
 
-If the deferred code presented for revocation is unknown, expired, already revoked, or has been replaced by a rotated value, the authorization server processes the request as defined by {{RFC7009}}. Authorization servers SHOULD treat any deferred code value previously associated with the same deferred processing state as a valid revocation target.
+If the deferred processing state completed successfully and the successful continuation response has already been returned to the client, revocation of the deferred code MUST NOT revoke any access token, refresh token, ID Token, authorization code, or other artifact issued by the successful completion response. Those artifacts are independent credentials after delivery and are revoked, when applicable, using their own revocation or invalidation mechanisms.
+
+If the deferred processing state completed successfully but the successful continuation response has not yet been returned to the client, a revocation request that is otherwise authorized MUST suppress delivery of the successful completion response. Subsequent continuation requests MUST return `access_denied` when the authorization server can identify the canceled state; the authorization server MUST NOT issue the access token response after accepting cancellation.
+
+If the deferred processing state completed unsuccessfully before the revocation request was processed, revocation does not change the terminal outcome. The authorization server MAY continue to return the terminal error response for that state until the deferred code expires or is purged.
+
+If the deferred code presented for revocation is unknown, expired, already revoked, or has been replaced by a rotated value, the authorization server processes the request as defined by {{RFC7009}}. Authorization servers SHOULD treat any deferred code value previously associated with the same deferred processing state as a valid revocation target when doing so does not weaken deferred code rotation or sender-constraining requirements.
+
+Authorization servers SHOULD process revocation requests in a manner that does not reveal whether the deferred code was recognized, expired, rotated, or already completed through differences in HTTP status code, response body, or response timing, consistent with {{RFC7009}} and the oracle resistance requirements in {{oracle-resistance}}.
 
 # Notification {#notification}
 
@@ -847,7 +855,7 @@ The endpoint MUST be an HTTPS URI. It MUST NOT contain a fragment component.
 
 When the authorization server defers an originating request from a client that has registered a notification endpoint and intends to deliver notifications for the deferred processing state, continuation responses MAY include a `notification_token` parameter. The deferred processing response for a token endpoint originating request MAY also include a `notification_token`.
 
-For authorization endpoint originating requests, the `notification_token` MUST NOT be conveyed in the deferred authorization response. The redirect query component is observable in browser history, server logs, and referer headers; placing a bearer credential there would expose it to the same disclosure surface as the deferred code itself, weakening notification authentication. The authorization server MUST defer issuance of the `notification_token` to the first continuation response.
+For authorization endpoint originating requests, the `notification_token` MUST NOT be conveyed in the deferred authorization response. The redirect query component is observable in browser history, server logs, and referer headers; placing a bearer credential there would expose it to the same disclosure surface as the deferred code itself, weakening notification authentication. If the authorization server issues a `notification_token` for such a request, it MUST convey the token no earlier than the first continuation response.
 
 The `notification_token` is an opaque bearer credential used to authenticate the authorization server's notification request to the client's notification endpoint. Clients MUST treat the value as opaque.
 
@@ -908,13 +916,11 @@ The authorization server MAY deliver a notification on any state transition, inc
 
 The authorization server MUST authenticate the notification request using only the issued `notification_token`. The authorization server MUST NOT include client credentials or other long-lived secrets in the notification request.
 
-# Originating Request Applicability
+# Per-Grant-Type Considerations
 
-This specification applies to any OAuth token request and to any OAuth authorization request.
+This specification applies to any OAuth token request and to any OAuth authorization request. The following subsections describe per-grant-type considerations for token endpoint originating requests. Considerations for authorization endpoint originating requests are addressed in {{authorization-endpoint-extensions}}; this section does not duplicate them.
 
 When an authorization server defers an originating request, it MUST preserve the security properties of the corresponding grant type or response type. Deferred processing MUST NOT make a one-time credential reusable, extend the validity of an expired credential, bypass proof requirements, or allow the client to substitute different grant inputs during continuation.
-
-The following subsections describe per-grant-type considerations for token endpoint originating requests. Considerations for authorization endpoint originating requests are addressed in {{authorization-endpoint-extensions}}; this section does not duplicate them.
 
 ## Authorization Code Grant
 
@@ -936,7 +942,7 @@ While deferred processing state exists for a refresh request, the authorization 
 
 An authorization server MAY defer issuance pending workload attestation, enterprise policy evaluation, or asynchronous risk analysis.
 
-For client credentials requests, deferred processing state MUST remain bound to the authenticated client and any sender-constraining or proof-of-possession material used by the original request.
+For client credentials requests, deferred processing state MUST remain bound to the authenticated client and any sender-constraining or proof-of-possession material used by the originating request.
 
 ## Token Exchange
 
@@ -971,7 +977,7 @@ resource=https://api.example.com
 
 ## Rich Authorization Requests
 
-When the originating request includes the `authorization_details` parameter defined by {{RFC9396}}, deferred processing state MUST preserve the originally requested authorization details. Continuation requests MUST NOT include `authorization_details`, and the authorization server MUST evaluate completion against the originally requested authorization details. Authorization decisions reached during deferred processing MAY narrow the granted authorization details but MUST NOT broaden them beyond what the original request expressed.
+When the originating request includes the `authorization_details` parameter defined by {{RFC9396}}, deferred processing state MUST preserve the originally requested authorization details. Continuation requests MUST NOT include `authorization_details`, and the authorization server MUST evaluate completion against the originally requested authorization details. Authorization decisions reached during deferred processing MAY narrow the granted authorization details but MUST NOT broaden them beyond what the originating request expressed.
 
 ## Assertion Grants
 
@@ -1096,7 +1102,7 @@ When DPoP nonces {{RFC9449}} are used, the authorization server MAY require a fr
 
 ## Client Authentication
 
-The authorization server MUST require client authentication equivalent to the originating request when the original request used client authentication.
+The authorization server MUST require client authentication equivalent to the originating request when the originating request used client authentication.
 
 For unauthenticated clients, including public clients, the authorization server MUST require the continuation request to identify the same client as the originating request when a client identifier was present. Client identification alone does not authenticate a public client or prove possession of the same client instance. Authorization servers MUST bind deferred processing state to additional proof or context that the requesting client instance demonstrates on each continuation request, such as DPoP proof {{RFC9449}}, mutual-TLS client certificate binding {{RFC8705}}, an authenticated user-agent session, device-bound context, or other sender-constraining material applicable to the originating request.
 
@@ -1189,7 +1195,7 @@ Authorization servers using long-lived deferred codes SHOULD apply protections e
 
 Continuation processing MUST NOT expand the requested authorization beyond the originating request. Authorization servers MUST evaluate the continuation request using the originating request context and MUST reject attempts to substitute new requested resources, scopes, subject tokens, assertions, or other grant inputs. This requirement applies equally to deferred token endpoint requests and deferred authorization endpoint requests.
 
-## Oracle Resistance
+## Oracle Resistance {#oracle-resistance}
 
 Deferred processing can expose information about policy state if attackers can compare immediate denial, deferred processing, polling duration, interaction requirements, and final errors across many requests. Authorization servers SHOULD avoid using externally observable deferred-processing behavior to reveal sensitive policy decisions, user existence, resource existence, risk signals, approval rules, or attestation outcomes.
 
@@ -1341,7 +1347,7 @@ Client Metadata Name:
 : `deferred_code_processing_supported`
 
 Client Metadata Description:
-: Boolean value indicating whether the client supports receiving deferred processing responses at the token endpoint.
+: Boolean value indicating whether the client supports receiving deferred code processing responses from the token endpoint and deferred authorization responses from the authorization endpoint.
 
 Change Controller:
 : IETF
@@ -1408,7 +1414,7 @@ This specification defines a generic Async Token Request layer for OAuth: a sing
 
 ## Why a Unified Async Layer
 
-OAuth's existing async story is fragmented. The OAuth Device Authorization Grant {{RFC8628}} defines its own continuation handle (`device_code`) and polling state machine for input-constrained devices. {{CIBA}} defines its own continuation handle (`auth_req_id`) and a separate backchannel authentication endpoint for end-user authentication. {{JWT-GRANT-INTERACTION}} defines interaction semantics specific to JWT bearer requests. {{RFC8693}} token exchange defines its own typed-token response shape. Each addresses a particular origination case with its own vocabulary, its own state machine, and its own error semantics.
+OAuth's existing async story is fragmented. The OAuth Device Authorization Grant {{RFC8628}} defines its own continuation handle (`device_code`) and polling state machine for input-constrained devices. {{CIBA}} defines its own continuation handle (`auth_req_id`) and a separate backchannel authentication endpoint for end-user authentication. {{JWT-GRANT-INTERACTION}} defines interaction semantics specific to JWT bearer requests. {{RFC8693}} token exchange defines its own typed-token response shape. The OpenID for Verifiable Credential Issuance specification defines a `pre-authorized_code` for credential-issuance flows with its own polling state machine. Each addresses a particular origination case with its own vocabulary, its own state machine, and its own error semantics.
 
 This specification factors those patterns into a single substrate. The same `deferred_code`, the same continuation grant type, the same `authorization_pending` / `interaction_required` / `slow_down` / `expired_token` vocabulary, and the same polling state machine apply whether the originating request was a token endpoint request, an authorization endpoint request, or a future deferral case that has not yet been standardized. Existing flows such as Device Authorization Grant and CIBA can be understood as profiles of this substrate that pre-date its generalization.
 
