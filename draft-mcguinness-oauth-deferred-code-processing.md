@@ -339,11 +339,7 @@ A `deferred_code`:
 
 The authorization server MUST bind the `deferred_code` to the originating request and associated client security context.
 
-The authorization server MAY rotate deferred codes during continuation processing.
-
-If the authorization server issues a replacement deferred code, the client MUST discard the previous value.
-
-If a deferred code is not sender-constrained or otherwise bound to proof-of-possession material, the authorization server MUST rotate the deferred code after each valid continuation request that returns `authorization_pending`, `interaction_required`, or `slow_down`. Authorization servers MUST use one-time-use deferred codes or an equivalent replay-resistant mechanism for deferred requests involving one-time credentials, high-value resources, public clients, or externally exposed interaction URIs.
+The authorization server MAY rotate deferred codes during continuation processing; if a replacement is issued, the client MUST discard the previous value. If a deferred code is not sender-constrained or otherwise bound to proof-of-possession material, the authorization server MUST rotate it after each valid continuation request that returns `authorization_pending`, `interaction_required`, or `slow_down`. Authorization servers MUST use one-time-use deferred codes or an equivalent replay-resistant mechanism for deferred requests involving one-time credentials, high-value resources, public clients, or externally exposed interaction URIs.
 
 # Deferred Processing
 
@@ -601,25 +597,19 @@ A client MAY present the `interaction_uri` to the user. This specification does 
 
 ## PKCE for Deferred Authorization Responses {#authorization-endpoint-pkce}
 
-When the originating authorization request included a `code_challenge` parameter as defined by {{RFC7636}}, the authorization server MUST associate the corresponding `code_challenge` and `code_challenge_method` values with the deferred processing state.
+When the originating authorization request included a `code_challenge` parameter as defined by {{RFC7636}}, the authorization server MUST associate the corresponding `code_challenge` and `code_challenge_method` values with the deferred processing state. PKCE verification cannot occur at the authorization endpoint because the client has not yet presented the `code_verifier`.
 
-PKCE verification cannot be performed at the authorization endpoint because the client has not yet presented the `code_verifier`. The first continuation request following a deferred authorization response MUST include the `code_verifier` parameter when PKCE was used on the originating authorization request, and the authorization server MUST verify the verifier against the stored `code_challenge` using the stored `code_challenge_method` before completing the deferred processing.
-
-This is an exception to the general prohibition in {{continuation-request}} on presenting `code_verifier` on continuation requests. The exception applies only to the first continuation request following a deferred authorization response, and only when PKCE was used on the originating authorization request. The `code_verifier` MUST NOT be re-presented on subsequent continuation requests; after the first continuation, PKCE verification state is preserved in the deferred processing state.
-
-If PKCE verification fails, the authorization server MUST reject the continuation request with `invalid_grant` and MUST terminate the deferred processing state.
+As an exception to the general prohibition in {{continuation-request}}, the first continuation request following a deferred authorization response MUST include the `code_verifier` parameter when PKCE was used, and the authorization server MUST verify it against the stored `code_challenge` using the stored `code_challenge_method`. The `code_verifier` MUST NOT be re-presented on subsequent continuation requests; PKCE verification state is preserved in the deferred processing state after the first continuation. If verification fails, the authorization server MUST reject the continuation request with `invalid_grant` and MUST terminate the deferred processing state.
 
 For authorization endpoint deferral of public client authorization requests, PKCE is REQUIRED in accordance with {{RFC9700}}. The `code_verifier` presented on the first continuation request serves as the continuation binding for the originating public client, in combination with any other binding mechanism applicable to the originating request.
 
-When the originating authorization request additionally signals a sender-constraining key, for example via a DPoP key JWK thumbprint mechanism associated with {{RFC9449}} or via mutual-TLS client certificate binding {{RFC8705}} expressed at the authorization endpoint, the authorization server MUST bind the deferred processing state to that key or certificate thumbprint. Each continuation request MUST use the corresponding proof or certificate binding as defined in {{continuation-request}}. The specific mechanism by which the authorization request conveys a sender-constraining key is out of scope for this specification.
+When the originating authorization request additionally signals a sender-constraining key (for example, via DPoP {{RFC9449}} or mutual-TLS client certificate binding {{RFC8705}} expressed at the authorization endpoint), the authorization server MUST bind the deferred processing state to that key or certificate thumbprint, and each continuation request MUST use the corresponding binding as defined in {{continuation-request}}. The mechanism by which the authorization request conveys a sender-constraining key is out of scope for this specification.
 
 ## Authorization Endpoint Errors
 
-When the authorization server cannot create deferred processing state for an authorization request, it returns the appropriate authorization endpoint error response defined by {{RFC6749}} in place of a deferred authorization response. The authorization server MUST NOT issue a `deferred_code` to defer reporting of a known-fatal error.
+When the authorization server cannot create deferred processing state for an authorization request, it returns the appropriate authorization endpoint error response defined by {{RFC6749}} in place of a deferred authorization response. The authorization server MUST NOT issue a `deferred_code` to defer reporting of a known-fatal error or to a `redirect_uri` that cannot be validated; invalid redirect URIs are handled per {{RFC6749}}.
 
-If the `redirect_uri` cannot be validated, the authorization server MUST NOT redirect the user agent to the unvalidated URI and MUST handle the failure as required by {{RFC6749}} for invalid redirect URIs, typically by displaying an error to the resource owner. In particular, the authorization server MUST NOT issue a `deferred_code` to an unvalidated redirect URI.
-
-A complete worked example of front-channel step-up using authorization endpoint deferral, including the PKCE-on-first-continuation handshake and a notification token, appears in the §Authorization Endpoint Deferral with Step-Up example in the appendix.
+A complete worked example of front-channel step-up using authorization endpoint deferral appears in {{authorization-endpoint-deferral-with-step-up}} in the appendix.
 
 # Token Endpoint Extensions
 
@@ -846,9 +836,7 @@ If the originating request was made by an authenticated client, the continuation
 
 When the client uses a client authentication mechanism that requires a fresh credential per request, such as the `client_assertion` and `client_assertion_type` parameters defined by {{RFC7521}}, the continuation request MAY present a freshly minted credential of the same type that authenticates the same client. The authorization server MUST verify that the freshly presented client credential identifies the client bound to the deferred processing state.
 
-If the originating request included a valid DPoP proof {{RFC9449}}, the authorization server MUST bind the deferred processing state to the DPoP public key thumbprint. Each continuation request MUST include a valid DPoP proof for the token endpoint, and the DPoP proof key MUST match the key bound to the deferred processing state. If the DPoP proof is invalid, the authorization server returns the error response defined by {{RFC9449}}. If the proof is valid but does not match the deferred processing state binding, the authorization server MUST reject the continuation request with `invalid_grant`.
-
-If the originating request used mutual-TLS client certificate binding {{RFC8705}}, the authorization server MUST bind the deferred processing state to the certificate or certificate thumbprint used for the originating request. Each continuation request MUST use certificate binding that matches the deferred processing state. If the certificate binding does not match, the authorization server MUST reject the continuation request with `invalid_grant`.
+If the originating request used DPoP {{RFC9449}} or mutual-TLS client certificate binding {{RFC8705}}, the authorization server MUST bind the deferred processing state to the corresponding DPoP key thumbprint or certificate thumbprint. Each continuation request MUST present the same binding; if it does not match the deferred processing state, the authorization server MUST reject the continuation request with `invalid_grant`. Invalid DPoP proofs are rejected with the error response defined by {{RFC9449}}.
 
 If the access token produced by successful completion is sender-constrained, the confirmation or binding material for that access token MUST be derived from the originating request and continuation security context. The authorization server MUST NOT allow a continuation request to replace sender-constraining key material from the originating request.
 
@@ -1029,13 +1017,9 @@ A deferred processing response with a `notification_token`:
 }
 ~~~
 
-## Notification Request
+## Notification Request and Response
 
-When the authorization server elects to send a notification, it sends an HTTPS POST request to the client's registered notification endpoint with the following:
-
-* an `Authorization` header containing `Bearer` followed by the current `notification_token` value,
-* a `Content-Type` header of `application/json`,
-* a JSON body containing the affected `deferred_code`.
+The authorization server sends notifications as HTTPS POST to the client's registered endpoint with `Authorization: Bearer <notification_token>`, `Content-Type: application/json`, and a JSON body containing the affected `deferred_code`:
 
 ~~~ http
 POST /deferred-notify HTTP/1.1
@@ -1046,15 +1030,9 @@ Content-Type: application/json
 {"deferred_code": "8N5B2K1"}
 ~~~
 
-The authorization server MUST NOT include access tokens, identity claims, processing results, or other state in the notification body. The notification conveys only that the deferred processing state has changed.
+The body MUST NOT contain access tokens, identity claims, processing results, or other state; the notification conveys only that the deferred processing state has changed.
 
-## Notification Response
-
-The client SHOULD respond with HTTP status `200 OK` or `204 No Content` and MUST NOT include processing results in the response body.
-
-The authorization server MUST NOT follow HTTP redirects from the notification endpoint and MUST treat any 3xx response as a delivery failure.
-
-The authorization server MAY retry notification delivery using an exponential backoff. The authorization server MUST NOT depend on successful notification delivery; deferred processing state remains authoritative and is obtained through continuation requests.
+The client SHOULD respond with `200 OK` or `204 No Content` and MUST NOT include processing results in the response body. The authorization server MUST NOT follow HTTP redirects (any 3xx response is a delivery failure) and MAY retry delivery with exponential backoff. The authorization server MUST NOT depend on successful notification delivery; deferred processing state remains observable through continuation requests.
 
 ## Client Behavior {#notification-client-behavior}
 
@@ -1084,7 +1062,7 @@ An authorization server MAY defer processing during authorization code redemptio
 
 If an authorization server defers authorization code redemption, it MUST treat the authorization code as consumed or otherwise unusable outside the deferred processing state. A later continuation request resumes the deferred redemption; it is not a second authorization code redemption attempt. The authorization server MUST preserve PKCE {{RFC7636}} verification results, redirect URI validation, client binding, and any other authorization code grant checks performed before deferral.
 
-PKCE verification, including comparison of the `code_verifier` against the previously stored `code_challenge` as defined by {{RFC7636}}, MUST occur during evaluation of the originating token request, before the authorization server creates deferred processing state. The `code_verifier` is consumed at that point and MUST NOT be re-presented on continuation requests, consistent with the prohibition on resubmitting originating request parameters in {{continuation-request}}. Continuation requests rely on the PKCE verification result preserved in deferred processing state. This rule applies to deferral of authorization code redemption at the token endpoint; the rules for authorization endpoint deferral are defined in {{authorization-endpoint-pkce}}.
+PKCE verification (comparison of `code_verifier` against the stored `code_challenge` per {{RFC7636}}) MUST occur during evaluation of the originating token request, before deferred processing state is created. The `code_verifier` is consumed at that point and MUST NOT be re-presented on continuation requests; continuation requests rely on the preserved verification result. Rules for authorization endpoint deferral are in {{authorization-endpoint-pkce}}.
 
 A profile MAY define partial completion for the authorization code grant, for example by issuing a partial access token covering a subset of requested scopes together with a `deferred_code` for the upgrade.
 
@@ -1732,7 +1710,7 @@ Pragma: no-cache
 
 The deferred code is invalidated; subsequent continuation requests return `invalid_grant`.
 
-## Authorization Endpoint Deferral with Step-Up
+## Authorization Endpoint Deferral with Step-Up {#authorization-endpoint-deferral-with-step-up}
 
 This example illustrates an authorization endpoint flow requiring step-up authentication and external approval. No authorization code is ever issued; continuation polling completes the originating request directly.
 
