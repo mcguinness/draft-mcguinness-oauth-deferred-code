@@ -152,37 +152,17 @@ Continuation Response:
 
 # Architectural Model
 
-This specification defines a substrate for deferred processing of OAuth requests.
+This specification defines a substrate for deferred processing of OAuth requests. The authorization server can temporarily suspend completion of an originating request while external interaction or asynchronous evaluation occurs. Suspension does not create a new authorization transaction; it preserves the originating request and resumes evaluation later.
 
-The authorization server can temporarily suspend completion of an originating request while external interaction or asynchronous evaluation occurs. Suspension does not create a new authorization transaction. It preserves the originating request and resumes evaluation of that request later.
-
-This specification uses a continuation architecture with three responsibilities:
+The architecture has three steps:
 
 * The client submits an ordinary OAuth request to either the token endpoint or the authorization endpoint.
-* The authorization server determines that processing cannot complete synchronously and creates deferred processing state. The authorization server returns a deferred processing response (for token endpoint requests) or a deferred authorization response (for authorization endpoint requests).
-* The client resumes the suspended processing by presenting the deferred code at the token endpoint using the deferred code grant type.
+* The authorization server determines that processing cannot complete synchronously, creates deferred processing state, and returns a deferred processing response (token endpoint) or a deferred authorization response (authorization endpoint).
+* The client resumes processing by presenting the deferred code at the token endpoint using the deferred code grant type.
 
-The continuation interface is the token endpoint in all cases. The originating endpoint determines how the initial `deferred_code` is delivered, but does not affect the continuation polling mechanism, completion vocabulary, or state machine.
+The continuation interface is the token endpoint in all cases. The originating endpoint determines how the initial `deferred_code` is delivered but does not affect the continuation polling mechanism, completion vocabulary, or state machine.
 
-The OAuth layer is responsible only for:
-
-* deferred processing state management,
-* continuation correlation,
-* deferred completion signaling,
-* continuation semantics,
-* optional interaction continuation references.
-
-Higher-layer protocols remain responsible for:
-
-* user authentication,
-* identity semantics,
-* consent semantics,
-* authentication ceremony,
-* transaction presentation,
-* identity proofing,
-* assurance evaluation.
-
-This separation allows higher-layer protocols such as OpenID Connect to profile this specification without embedding identity-specific behavior into the OAuth substrate.
+The OAuth layer is responsible for deferred processing state management, continuation correlation, deferred completion signaling, continuation semantics, and optional interaction continuation references. Higher-layer protocols remain responsible for user authentication, identity semantics, consent semantics, authentication ceremony, transaction presentation, identity proofing, and assurance evaluation. This separation allows higher-layer protocols such as OpenID Connect to profile this specification without embedding identity-specific behavior into the OAuth substrate.
 
 ## Design Goals
 
@@ -367,26 +347,9 @@ If a deferred code is not sender-constrained or otherwise bound to proof-of-poss
 
 # Deferred Processing
 
-When processing an originating request, the authorization server MAY defer completion of the request. The originating request may be a token request submitted to the token endpoint or an authorization request submitted to the authorization endpoint.
+When processing an originating request (a token request at the token endpoint or an authorization request at the authorization endpoint), the authorization server MAY defer completion. Deferred processing allows token issuance to continue asynchronously after the originating request has been evaluated; see {{introduction}} for representative use cases.
 
-Deferred processing allows token issuance to continue asynchronously after the originating request has been evaluated.
-
-A deferred request MAY involve:
-
-* asynchronous policy evaluation,
-* external orchestration,
-* enterprise workflow execution,
-* workload validation,
-* user interaction,
-* authentication continuation,
-* transaction review,
-* other implementation-defined processing.
-
-The authorization server communicates deferred processing state to the client through:
-
-* deferred codes,
-* continuation responses,
-* optional interaction continuation references.
+The authorization server communicates deferred processing state to the client through deferred codes, continuation responses, and optional interaction continuation references.
 
 ## Client Behavior {#client-behavior}
 
@@ -656,59 +619,7 @@ When the authorization server cannot create deferred processing state for an aut
 
 If the `redirect_uri` cannot be validated, the authorization server MUST NOT redirect the user agent to the unvalidated URI and MUST handle the failure as required by {{RFC6749}} for invalid redirect URIs, typically by displaying an error to the resource owner. In particular, the authorization server MUST NOT issue a `deferred_code` to an unvalidated redirect URI.
 
-## Example: Front-Channel Step-Up
-
-A client initiates an authorization code request, signalling acceptance of a deferred decision via `completion_mode=deferred`:
-
-~~~ http
-GET /authorize?
-  response_type=code&
-  client_id=s6BhdRkqt3&
-  redirect_uri=https%3A%2F%2Fclient.example.com%2Fcb&
-  scope=transfer.execute&
-  state=xyz&
-  code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&
-  code_challenge_method=S256&
-  completion_mode=deferred HTTP/1.1
-Host: as.example.com
-~~~
-
-The authorization server determines that the requested operation requires step-up authentication and a manager approval, and defers the authorization. It redirects the user agent back to the client:
-
-~~~ http
-HTTP/1.1 302 Found
-Location: https://client.example.com/cb?
-  deferred_code=8N5B2K1&
-  state=xyz&
-  expires_in=900&
-  interaction_uri=https%3A%2F%2Fas.example.com%2Finteract%2F8N5B2K1
-~~~
-
-The client presents the `interaction_uri` to the user, then submits a continuation request with the PKCE verifier:
-
-~~~ http
-POST /token HTTP/1.1
-Host: as.example.com
-Content-Type: application/x-www-form-urlencoded
-
-grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Adeferred_code&
-deferred_code=8N5B2K1&
-code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk&
-client_id=s6BhdRkqt3
-~~~
-
-The authorization server verifies the PKCE verifier, finds processing still in progress, and returns:
-
-~~~ json
-{
-  "error": "authorization_pending",
-  "deferred_code": "9P2K7M3",
-  "interval": 5,
-  "expires_in": 880
-}
-~~~
-
-Subsequent continuation requests omit the `code_verifier`. Once the step-up and approval complete, the continuation response returns an access token response directly.
+A complete worked example of front-channel step-up using authorization endpoint deferral, including the PKCE-on-first-continuation handshake and a notification token, appears in the §Authorization Endpoint Deferral with Step-Up example in the appendix.
 
 # Token Endpoint Extensions
 
@@ -958,11 +869,19 @@ The authorization server MUST verify that the deferred code is valid, unexpired,
 
 # Continuation Responses
 
+## Common Rules
+
+The non-terminal continuation responses defined in this section (`authorization_pending`, `interaction_required`, `slow_down`) share the following rules:
+
+* The response MUST include an `expires_in` parameter.
+* The response MUST include a `deferred_code` parameter when the authorization server rotates the deferred code, including the cases in which rotation is required by {{deferred-code-semantics}}; the client MUST discard the previous value and use the replacement. Otherwise the response MAY include a `deferred_code` parameter, and if omitted, the client continues to use the deferred code value from the continuation request.
+* Interval handling is response-specific and is described per response below.
+
 ## Still Pending
 
 If processing remains incomplete, the authorization server returns a token endpoint error response with `authorization_pending`.
 
-The response MUST include an `expires_in` parameter. The response MUST include a `deferred_code` parameter when the authorization server rotates the deferred code, including the cases in which rotation is required by {{deferred-code-semantics}}; the client MUST discard the previous value and use the replacement. Otherwise the response MAY include a `deferred_code` parameter, and if omitted, the client continues to use the deferred code value from the continuation request. The response MAY include an `interval` parameter to replace the polling interval currently retained by the client; if omitted, the client's current interval remains in effect.
+The response MAY include an `interval` parameter to replace the polling interval currently retained by the client; if omitted, the client's current interval remains in effect.
 
 ~~~ json
 {
@@ -975,9 +894,9 @@ The response MUST include an `expires_in` parameter. The response MUST include a
 
 ## Interaction Required
 
-If external interaction is required before processing can continue, the authorization server returns a token endpoint error response with `interaction_required`.
+If external interaction is required before processing can continue, the authorization server returns a token endpoint error response with `interaction_required`. The response MUST also include an `interaction_uri` parameter.
 
-The response MUST include an `expires_in` parameter and an `interaction_uri` parameter. The response MUST include a `deferred_code` parameter when the authorization server rotates the deferred code, including the cases in which rotation is required by {{deferred-code-semantics}}; the client MUST discard the previous value and use the replacement. Otherwise the response MAY include a `deferred_code` parameter, and if omitted, the client continues to use the deferred code value from the continuation request. The response MAY include an `interval` parameter to replace the polling interval currently retained by the client; if omitted, the client's current interval remains in effect.
+The response MAY include an `interval` parameter to replace the polling interval currently retained by the client; if omitted, the client's current interval remains in effect.
 
 ~~~ json
 {
@@ -994,9 +913,7 @@ The response MUST include an `expires_in` parameter and an `interaction_uri` par
 
 If the client submits continuation requests more frequently than permitted, the authorization server MAY return a token endpoint error response with `slow_down`. Deferred processing state is preserved.
 
-The client MUST increase its polling interval before submitting another continuation request. The new interval MUST be at least the larger of any `interval` value provided in the response and the previously used interval increased by 5 seconds. The unconditional 5-second increase preserves the polling behavior defined by {{RFC8628}}.
-
-The response MUST include an `expires_in` parameter. The response MUST include a `deferred_code` parameter when the authorization server rotates the deferred code, including the cases in which rotation is required by {{deferred-code-semantics}}; the client MUST discard the previous value and use the replacement. Otherwise the response MAY include a `deferred_code` parameter, and if omitted, the client continues to use the deferred code value from the continuation request. If the response includes an `interval` parameter, the client's retained polling interval becomes the larger of that value and the previously retained interval increased by 5 seconds; if omitted, the client's retained polling interval increases by 5 seconds.
+The client MUST increase its polling interval before submitting another continuation request. The new interval MUST be at least the larger of any `interval` value provided in the response and the previously used interval increased by 5 seconds. The unconditional 5-second increase preserves the polling behavior defined by {{RFC8628}}. If the response omits the `interval` parameter, the client's retained polling interval increases by 5 seconds.
 
 ~~~ json
 {
@@ -1092,13 +1009,11 @@ The endpoint MUST be an HTTPS URI. It MUST NOT contain a fragment component.
 
 ## Notification Token Parameter
 
-When the authorization server defers an originating request from a client that has registered a notification endpoint and intends to deliver notifications for the deferred processing state, continuation responses MAY include a `notification_token` parameter. The deferred processing response for a token endpoint originating request MAY also include a `notification_token`.
+When the authorization server defers a request from a client that has registered a notification endpoint and intends to deliver notifications, deferred processing and continuation responses MAY include a `notification_token` parameter. The token is an opaque bearer credential used to authenticate the authorization server's notification request to the client's notification endpoint; clients MUST treat it as opaque.
 
-For authorization endpoint originating requests, the `notification_token` MUST NOT be conveyed in the deferred authorization response. The redirect query component is observable in browser history, server logs, and referer headers; placing a bearer credential there would expose it to the same disclosure surface as the deferred code itself, weakening notification authentication. If the authorization server issues a `notification_token` for such a request, it MUST convey the token no earlier than the first continuation response.
+For authorization endpoint originating requests, the `notification_token` MUST NOT be conveyed in the deferred authorization response. The redirect query component is observable in browser history, server logs, and referer headers; placing a bearer credential there would expose it to the same disclosure surface as the deferred code itself. If the authorization server issues a `notification_token` for such a request, it MUST convey the token no earlier than the first continuation response.
 
-The `notification_token` is an opaque bearer credential used to authenticate the authorization server's notification request to the client's notification endpoint. Clients MUST treat the value as opaque.
-
-The authorization server MUST issue notification tokens with sufficient entropy to resist guessing and MUST bind each notification token to a single deferred processing state. The authorization server MAY rotate the notification token. If a continuation response includes a replacement `notification_token`, the client MUST discard the previous value and validate subsequent notifications against the replacement.
+The authorization server MUST issue notification tokens with sufficient entropy to resist guessing, MUST bind each to a single deferred processing state, and MAY rotate them. If a continuation response includes a replacement `notification_token`, the client MUST discard the previous value and validate subsequent notifications against the replacement.
 
 ### Example
 
@@ -1175,13 +1090,11 @@ A profile MAY define partial completion for the authorization code grant, for ex
 
 ## Refresh Token Grant
 
-An authorization server MAY require additional evaluation before issuing refreshed tokens.
+An authorization server MAY require additional evaluation before issuing refreshed tokens. When refresh token rotation is used, the authorization server SHOULD rotate the refresh token only on successful completion of the deferred request, not at the time of deferral, to avoid weakening the rotation guarantees described in {{RFC9700}}.
 
-When refresh token rotation is used, the authorization server SHOULD rotate the refresh token only on successful completion of the deferred request, not at the time of deferral. Issuing a replacement refresh token before the deferred operation completes would create two refresh tokens authorizing the same period, weakening the rotation guarantees described in {{RFC9700}}.
+While deferred processing state exists for a refresh request, the authorization server MUST treat the original refresh token as suspended: it MUST NOT honor concurrent refresh requests using the same refresh token, and MUST prevent the original refresh token and the deferred processing state from together producing more tokens than a single successful synchronous refresh would have.
 
-While deferred processing state exists for a refresh request, the authorization server MUST treat the original refresh token as suspended: it MUST NOT honor concurrent refresh requests using the same refresh token while a deferred refresh request derived from it is pending. The authorization server MUST prevent the original refresh token and the deferred processing state from together producing more tokens than a single successful synchronous refresh request would have produced.
-
-Partial completion is NOT applicable to the refresh token grant: a partial replacement followed by an upgrade would conflict with the refresh token rotation semantics described above.
+Partial completion is NOT applicable to the refresh token grant: a partial replacement followed by an upgrade would conflict with refresh token rotation semantics.
 
 ## Client Credentials Grant
 
@@ -1368,25 +1281,17 @@ For authorization endpoint originating requests, the PKCE {{RFC7636}} `code_veri
 
 PKCE alone is NOT a sufficient continuation binding for public clients on token endpoint originating requests. The `code_verifier` is consumed during the originating token request and is not re-presented on continuation requests, so PKCE state cannot authenticate the continuation requestor in that case. PKCE MAY be combined with one of the bindings above but does not substitute for one.
 
-Authorization servers MUST NOT defer originating requests from public clients without an applicable continuation binding — one of the bindings above for token endpoint originating requests, or one of the bindings above or the PKCE-on-first-continuation binding described in {{authorization-endpoint-pkce}} for authorization endpoint originating requests. A bearer-only `deferred_code` issued to a public client without an accompanying continuation binding is recoverable by any party that observes the value (through logs, intermediaries, the redirect channel, or other disclosure paths) and is not safe to honor.
+Authorization servers MUST NOT defer originating requests from public clients without an applicable continuation binding: one of the bindings above for token endpoint originating requests, or one of the bindings above or the PKCE-on-first-continuation binding described in {{authorization-endpoint-pkce}} for authorization endpoint originating requests. A bearer-only `deferred_code` issued to a public client without an accompanying continuation binding is recoverable by any party that observes the value (through logs, intermediaries, the redirect channel, or other disclosure paths) and is not safe to honor.
 
 Authorization servers MUST NOT allow a continuation request to weaken client authentication, sender-constraining, or proof-of-possession requirements from the originating request.
 
-## Deferred Code Replay
+## Deferred Code Rotation and Replay
 
-Authorization servers SHOULD detect replay of invalidated or rotated deferred codes.
+Authorization servers MAY rotate deferred codes during continuation processing; clients MUST discard replaced values. When rotating, authorization servers SHOULD invalidate the previous value promptly after issuing the replacement.
 
-Replay detection is particularly important when a deferred code is returned through an interaction channel, logged by intermediaries, or exposed to user agents.
+If a deferred code is not sender-constrained or otherwise bound to proof-of-possession material, authorization servers MUST rotate the deferred code after each valid continuation request that returns `authorization_pending`, `interaction_required`, or `slow_down`. Rotation MAY be omitted when the deferred code is sender-constrained or protected by an equivalent replay-resistant mechanism.
 
-## Deferred Code Rotation
-
-Authorization servers MAY rotate deferred codes during continuation processing.
-
-Clients MUST discard replaced values.
-
-When rotating deferred codes, authorization servers SHOULD invalidate the previous value promptly after issuing the replacement.
-
-If a deferred code is not sender-constrained or otherwise bound to proof-of-possession material, authorization servers MUST rotate the deferred code after each valid continuation request that returns `authorization_pending`, `interaction_required`, or `slow_down`. Authorization servers MAY omit rotation when the deferred code is sender-constrained or protected by an equivalent replay-resistant mechanism.
+Authorization servers SHOULD detect replay of invalidated or rotated deferred codes. Replay detection is particularly important when a deferred code is returned through an interaction channel, logged by intermediaries, or exposed to user agents.
 
 ## Authorization Endpoint Deferral
 
@@ -1521,208 +1426,74 @@ Interaction URIs and deferred codes SHOULD NOT reveal user identifiers, client i
 
 # IANA Considerations {#iana-considerations}
 
+All registrations below have the IETF as Change controller and this document as Specification document, unless noted otherwise.
+
 ## OAuth Parameters Registry
 
-This specification registers the following parameters in the "OAuth Parameters" registry established by {{RFC6749}}.
+This specification registers the following parameters in the "OAuth Parameters" registry established by {{RFC6749}}:
 
-Parameter name:
-: `completion_mode`
-
-Parameter usage location:
-: authorization request, token request
-
-Change controller:
-: IETF
-
-Specification document(s):
-: This document
-
-Parameter name:
-: `deferred_code`
-
-Parameter usage location:
-: authorization response, token response, token request
-
-Change controller:
-: IETF
-
-Specification document(s):
-: This document
-
-Parameter name:
-: `deferred_code_expires_in`
-
-Parameter usage location:
-: authorization response, token response
-
-Change controller:
-: IETF
-
-Specification document(s):
-: This document
-
-Parameter name:
-: `interaction_uri`
-
-Parameter usage location:
-: authorization response, token response
-
-Change controller:
-: IETF
-
-Specification document(s):
-: This document
-
-Parameter name:
-: `notification_token`
-
-Parameter usage location:
-: token response
-
-Change controller:
-: IETF
-
-Specification document(s):
-: This document
+| Parameter name | Parameter usage location |
+|---|---|
+| `completion_mode` | authorization request, token request |
+| `deferred_code` | authorization response, token response, token request |
+| `deferred_code_expires_in` | authorization response, token response |
+| `interaction_uri` | authorization response, token response |
+| `notification_token` | token response |
 
 ## OAuth Completion Mode Values Registry
 
-This specification establishes the "OAuth Completion Mode Values" registry. The registry contains values used in the `completion_mode` parameter defined in {{completion-mode}}.
-
-The registration policy for new values is Specification Required as defined by {{RFC8126}}.
+This specification establishes the "OAuth Completion Mode Values" registry, containing values used in the `completion_mode` parameter defined in {{completion-mode}}. The registration policy for new values is Specification Required as defined by {{RFC8126}}.
 
 Initial registry contents:
 
-Value:
-: `deferred`
-
-Description:
-: Client accepts deferred completion. The authorization server MAY complete the request asynchronously and return a `deferred_code` for continuation.
-
-Change controller:
-: IETF
-
-Specification document(s):
-: This document
+| Value | Description |
+|---|---|
+| `deferred` | Client accepts deferred completion. The authorization server MAY complete the request asynchronously and return a `deferred_code` for continuation. |
 
 ## OAuth Authorization Server Metadata Registry
 
-This specification registers the following parameters in the "OAuth Authorization Server Metadata" registry established by {{RFC8414}}.
+This specification registers the following parameters in the "OAuth Authorization Server Metadata" registry established by {{RFC8414}}:
 
-Metadata name:
-: `deferred_code_processing_supported`
-
-Metadata description:
-: Boolean value indicating support for deferred request processing using `deferred_code`.
-
-Change controller:
-: IETF
-
-Specification document(s):
-: This document
-
-Metadata name:
-: `deferred_code_grant_types_supported`
-
-Metadata description:
-: JSON array containing OAuth grant type values for which the authorization server can return deferred processing responses from the token endpoint.
-
-Change controller:
-: IETF
-
-Specification document(s):
-: This document
-
-Metadata name:
-: `deferred_code_authorization_endpoint_supported`
-
-Metadata description:
-: Boolean value indicating support for deferred authorization responses at the authorization endpoint.
-
-Change controller:
-: IETF
-
-Specification document(s):
-: This document
-
-Metadata name:
-: `deferred_code_notification_supported`
-
-Metadata description:
-: Boolean value indicating support for deferred code state-change notification mode.
-
-Change controller:
-: IETF
-
-Specification document(s):
-: This document
+| Metadata name | Description |
+|---|---|
+| `deferred_code_processing_supported` | Boolean. Support for deferred request processing using `deferred_code`. |
+| `deferred_code_grant_types_supported` | JSON array of OAuth grant type values for which the authorization server can return deferred processing responses from the token endpoint. |
+| `deferred_code_authorization_endpoint_supported` | Boolean. Support for deferred authorization responses at the authorization endpoint. |
+| `deferred_code_notification_supported` | Boolean. Support for deferred code state-change notification mode. |
 
 ## OAuth Dynamic Client Registration Metadata Registry
 
-This specification registers the following parameters in the "OAuth Dynamic Client Registration Metadata" registry established by {{RFC7591}}.
+This specification registers the following parameters in the "OAuth Dynamic Client Registration Metadata" registry established by {{RFC7591}}:
 
-Client Metadata Name:
-: `deferred_code_processing_supported`
-
-Client Metadata Description:
-: Boolean value indicating whether the client supports receiving deferred processing responses from the token endpoint and deferred authorization responses from the authorization endpoint.
-
-Change Controller:
-: IETF
-
-Specification Document(s):
-: This document
-
-Client Metadata Name:
-: `deferred_code_notification_endpoint`
-
-Client Metadata Description:
-: HTTPS URL where the authorization server delivers deferred code state-change notifications to the client.
-
-Change Controller:
-: IETF
-
-Specification Document(s):
-: This document
+| Client metadata name | Description |
+|---|---|
+| `deferred_code_processing_supported` | Boolean. Whether the client supports receiving deferred processing responses (token endpoint) and deferred authorization responses (authorization endpoint). |
+| `deferred_code_notification_endpoint` | HTTPS URL where the authorization server delivers deferred code state-change notifications to the client. |
 
 ## OAuth URI Registry
 
-This specification registers the following URI in the "OAuth URI" registry established by {{RFC6755}}.
+This specification registers the following URI in the "OAuth URI" registry established by {{RFC6755}}:
 
-URN:
-: `urn:ietf:params:oauth:grant-type:deferred_code`
-
-Common name:
-: Deferred Code Grant Type
-
-Change controller:
-: IETF
-
-Specification document(s):
-: This document
+| URN | Common name |
+|---|---|
+| `urn:ietf:params:oauth:grant-type:deferred_code` | Deferred Code Grant Type |
 
 ## OAuth Extensions Error Registry
 
-The error names `authorization_pending`, `slow_down`, and `expired_token` are already registered in the "OAuth Extensions Error Registry" established by {{RFC6749}} by the OAuth Device Authorization Grant {{RFC8628}}. This specification reuses those error names at the token endpoint with the generalized deferred-processing semantics defined in {{deferred-error-semantics}}. No registry changes are required for these three error names; the registrations continue to point to {{RFC8628}}, and this document defines how those errors apply to deferred processing state in addition to device authorization state.
+This specification reuses existing error codes in the "OAuth Extensions Error Registry" established by {{RFC6749}} with the generalized deferred-processing semantics defined in {{deferred-error-semantics}}:
 
-The error name `access_denied` is registered by {{RFC6749}} for authorization endpoint use and is extended to token endpoint use by {{RFC8628}}. This specification relies on the {{RFC8628}} extension and applies `access_denied` to deferred processing state that has terminated unsuccessfully. No registry changes are required.
+- `authorization_pending`, `slow_down`, `expired_token`: registered by {{RFC8628}}. No registry changes; this document defines how they apply to deferred processing state in addition to device authorization state.
+- `access_denied`: registered by {{RFC6749}}, extended to token endpoint use by {{RFC8628}}. No registry changes; this document applies it to deferred processing state that has terminated unsuccessfully.
 
-This specification updates the existing `interaction_required` registration in the "OAuth Extensions Error Registry" established by {{RFC6749}}. That error name was originally registered by OpenID Connect {{OIDC-CORE}} for authorization endpoint use. This specification adds token endpoint response usage for deferred request processing using `deferred_code`.
+This specification updates the existing `interaction_required` registration (originally registered by {{OIDC-CORE}} for authorization endpoint use) to add token endpoint response usage:
 
-Error name:
-: `interaction_required`
-
-Error usage location:
-: authorization endpoint response, token endpoint response
-
-Related protocol extension:
-: OpenID Connect, deferred request processing using `deferred_code`
-
-Change controller:
-: OpenID Foundation Artifact Binding Working Group; IETF for token endpoint response usage defined by this document
-
-Specification document(s):
-: OpenID Connect Core 1.0; this document
+| Field | Value |
+|---|---|
+| Error name | `interaction_required` |
+| Error usage location | authorization endpoint response, token endpoint response |
+| Related protocol extension | OpenID Connect; deferred request processing using `deferred_code` |
+| Change controller | OpenID Foundation Artifact Binding Working Group; IETF for token endpoint response usage defined by this document |
+| Specification document(s) | OpenID Connect Core 1.0; this document |
 
 --- back
 
@@ -1871,9 +1642,7 @@ This appendix illustrates complete deferred flows. The examples are non-normativ
 
 ## Token Endpoint Deferral with Interaction
 
-This example illustrates a deferred authorization code redemption at the token endpoint that includes external interaction.
-
-A client redeems an authorization code at the token endpoint, presenting a PKCE `code_verifier` and a DPoP proof:
+A client redeems an authorization code with a PKCE `code_verifier` and a DPoP proof:
 
 ~~~ http
 POST /token HTTP/1.1
@@ -1889,7 +1658,7 @@ completion_mode=deferred&
 client_id=s6BhdRkqt3
 ~~~
 
-The authorization server validates the request and PKCE verifier, then defers completion pending an enterprise approval workflow. It returns a deferred processing response:
+The authorization server defers completion pending an enterprise approval workflow:
 
 ~~~ http
 HTTP/1.1 400 Bad Request
@@ -1905,7 +1674,7 @@ Pragma: no-cache
 }
 ~~~
 
-The client polls using the deferred code grant type with a fresh DPoP proof:
+The client polls with a fresh DPoP proof:
 
 ~~~ http
 POST /token HTTP/1.1
@@ -1918,7 +1687,7 @@ deferred_code=8N5B2K1&
 client_id=s6BhdRkqt3
 ~~~
 
-External approval determines that a manager must review the request. The authorization server rotates the deferred code, transitions the state to Interaction Required, and returns an `interaction_uri`:
+A manager review is required. The authorization server rotates the deferred code and returns `interaction_required` with an `interaction_uri`:
 
 ~~~ http
 HTTP/1.1 400 Bad Request
@@ -1936,7 +1705,7 @@ Pragma: no-cache
 }
 ~~~
 
-The client surfaces the `interaction_uri` to a user. After the manager completes the approval at that URI, the authorization server transitions the state to Complete. The next continuation request returns an access token response:
+The client surfaces the `interaction_uri` to the user. After approval completes, the next continuation request returns:
 
 ~~~ http
 POST /token HTTP/1.1
@@ -1967,9 +1736,9 @@ The deferred code is invalidated; subsequent continuation requests return `inval
 
 ## Authorization Endpoint Deferral with Step-Up
 
-This example illustrates a deferred authorization endpoint flow in which the originating request requires step-up authentication and external approval. No authorization code is ever issued; continuation polling at the token endpoint completes the originating request directly.
+This example illustrates an authorization endpoint flow requiring step-up authentication and external approval. No authorization code is ever issued; continuation polling completes the originating request directly.
 
-A client sends an authorization code request that includes PKCE and signals acceptance of a deferred authorization decision:
+A client sends an authorization code request with PKCE and signals acceptance of a deferred authorization decision:
 
 ~~~ http
 GET /authorize?
@@ -1984,7 +1753,7 @@ GET /authorize?
 Host: as.example.com
 ~~~
 
-The authorization server determines that the requested operation requires step-up authentication and a manager approval. Instead of issuing an authorization code, it defers the authorization and redirects the user agent back to the client:
+The authorization server defers and redirects the user agent back to the client:
 
 ~~~ http
 HTTP/1.1 302 Found
@@ -1995,7 +1764,7 @@ Location: https://client.example.com/cb?
   interaction_uri=https%3A%2F%2Fas.example.com%2Finteract%2F8N5B2K1
 ~~~
 
-The client validates the `state` parameter, then surfaces the `interaction_uri` to the user. While the user completes step-up at the interaction URI, the client submits a first continuation request with the PKCE verifier:
+The client validates `state`, surfaces the `interaction_uri` to the user, and submits a first continuation request with the PKCE verifier:
 
 ~~~ http
 POST /token HTTP/1.1
@@ -2008,7 +1777,7 @@ code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk&
 client_id=s6BhdRkqt3
 ~~~
 
-The authorization server verifies the PKCE verifier, finds processing still in progress, rotates the deferred code, and returns `interaction_required` to indicate the manager approval step is still outstanding. It also issues a notification token now that delivery to the redirect was complete:
+The authorization server verifies PKCE, rotates the deferred code, and returns `interaction_required`. It also issues a notification token now that redirect delivery is complete:
 
 ~~~ http
 HTTP/1.1 400 Bad Request
@@ -2027,7 +1796,7 @@ Pragma: no-cache
 }
 ~~~
 
-The client discards the previous `deferred_code` and continues polling with the replacement value. The `code_verifier` is not included on subsequent continuation requests. Once the user completes step-up and the manager approves the request, the authorization server transitions the state to Complete and the next continuation response returns an access token directly:
+The client polls with the replacement deferred code; `code_verifier` is not re-sent. After approval, the next continuation response returns an access token directly:
 
 ~~~ http
 HTTP/1.1 200 OK
@@ -2050,7 +1819,7 @@ No authorization code was issued at any point; the deferred code carried continu
 
 A higher-layer profile of this specification SHOULD answer the following questions to demonstrate fit with the substrate's extension model. The checklist is intended as guidance for profile authors; it does not impose normative requirements beyond those already stated in the body of this specification.
 
-1. **Per-request opt-in signal.** Does the profile introduce a new mode the client must opt into on a per-request basis? If the mode is a *completion mode* (how the request's result reaches the client), register a value in the "OAuth Completion Mode Values" registry established by this specification. If the mode is a *shape or handling mode* (what the produced grant looks like, or how the originating request is handled), register the value in a registry established outside this specification — for example, in the OAuth Grant Mode Values registry established by {{INTERIM-GRANT-MODE}}, or in a registry the profile establishes itself by bundling parameter mechanics with its first value (the RFC 9396 model). Specify how the new value interacts with `deferred` and any other registered values.
+1. **Per-request opt-in signal.** Does the profile introduce a new mode the client must opt into on a per-request basis? If the mode is a *completion mode* (how the request's result reaches the client), register a value in the "OAuth Completion Mode Values" registry established by this specification. If the mode is a *shape or handling mode* (what the produced grant looks like, or how the originating request is handled), register the value in a registry established outside this specification: for example, in the OAuth Grant Mode Values registry established by {{INTERIM-GRANT-MODE}}, or in a registry the profile establishes itself by bundling parameter mechanics with its first value (the RFC 9396 model). Specify how the new value interacts with `deferred` and any other registered values.
 
 2. **Abstract state.** Does the profile introduce a new externally-observable state extending the lifecycle in {{abstract-state-status}}? If so, what token endpoint response distinguishes it (typically a profile-defined error code value registered in the "OAuth Extensions Error Registry")? Profile-defined states MUST satisfy the state-distinguishability obligation and the substrate guarantees stated in {{substrate-invariants}}.
 
