@@ -369,7 +369,7 @@ A client that has not registered this parameter provides no static capability si
 
 A client SHOULD register `deferred_code_processing_supported=false` when it cannot accept a non-synchronous outcome, for example when the calling code path has a hard latency budget, when the client has no facility to retain or resume continuation state, or when client policy requires sync-or-fail token acquisition. A value of `false` is an explicit opt-out: the authorization server MUST NOT defer originating requests from that client even if a request contains `completion_mode=deferred`, unless the client metadata is first updated by an authorized registration mechanism.
 
-Static client capability and per-request acceptance answer different questions. Client metadata declares the modes a client implementation can handle in principle; the `completion_mode` parameter declares the modes the client accepts for a specific request. The two operate together: an authorization server SHOULD defer only when both the client's static metadata permits it and the request itself is eligible under the authorization server's policy (the default behavior when `completion_mode` is absent is defined in {{completion-mode}}).
+Static client capability and per-request acceptance answer different questions. Client metadata declares the modes a client implementation can handle in principle; the `completion_mode` parameter declares the modes the client accepts for a specific request. The two operate together: an authorization server SHOULD defer only when client metadata does not explicitly prohibit deferral and the request itself is eligible under the authorization server's policy. When client metadata is omitted, `completion_mode=deferred` can provide the per-request acceptance signal for that request. The default behavior when `completion_mode` is absent is defined in {{completion-mode}}.
 
 The two-channel arrangement matches the precedent set by existing OAuth and OpenID Connect parameters such as `response_type` and its corresponding client metadata field `response_types`, where durable capability is registered as metadata and per-request acceptance is signaled by the parameter. See {{request-parameter-precedents}} for the full mapping. A client with no registered capability signal that wishes to opt into deferred processing for a specific request uses `completion_mode=deferred` for that request; the authorization server is then permitted to defer the request under the policy described in {{completion-mode}}.
 
@@ -473,7 +473,7 @@ The notification mechanism defined in {{notification}} is the substrate's only b
 
 ### Worked Examples
 
-Worked examples of profile-defined advisory delivery channels (a webhook result delivery profile and a Server-Sent Events streaming profile) are available in the proposals/ directory of this specification's repository. Both proposals exercise the full scope this section permits, including credential delivery when the issued access token is sender-constrained, with preview-only delivery as the fallback otherwise. They are illustrative, not normative.
+Worked examples of profile-defined advisory delivery channels (a webhook result delivery profile and a Server-Sent Events streaming profile) are available in the proposals/ directory of this specification's repository. Both proposals exercise the full scope this section permits, including credential delivery when the issued access token is sender-constrained, with preview-only delivery as the fallback otherwise. Credential delivery in those examples is an exceptional profile-defined optimization, not the default expected use of advisory delivery. The examples are illustrative, not normative.
 
 # Completion Mode Parameter {#completion-mode}
 
@@ -1164,6 +1164,8 @@ If omitted, the default value is `false`.
 
 This parameter indicates that the authorization server can return deferred processing responses from the token endpoint and accepts the deferred code grant type. It does not indicate that every supported grant type or every token request is eligible for deferred processing.
 
+This authorization server metadata parameter intentionally has the same name as the client metadata parameter defined in {{client-capability}} and registered in {{iana-considerations}}. The registries are distinct; the authorization server metadata value advertises server support, while the client metadata value declares client capability.
+
 An authorization server that supports this specification and publishes the `grant_types_supported` metadata parameter defined by {{RFC8414}} MUST include `urn:ietf:params:oauth:grant-type:deferred_code` in that parameter.
 
 ## Deferred Code Grant Types Supported Metadata
@@ -1445,6 +1447,16 @@ This specification registers the following parameters in the "OAuth Dynamic Clie
 |---|---|
 | `deferred_code_processing_supported` | Boolean. Whether the client supports receiving deferred processing responses (token endpoint) and deferred authorization responses (authorization endpoint). |
 | `deferred_code_notification_endpoint` | HTTPS URL where the authorization server delivers deferred code state-change notifications to the client. |
+
+The `deferred_code_processing_supported` name is intentionally also registered in the OAuth Authorization Server Metadata registry. The same name is used in distinct registries for the corresponding server-support and client-capability signals.
+
+## OAuth Token Type Hints Registry
+
+This specification registers the following value in the "OAuth Token Type Hints" registry established by {{RFC7009}}:
+
+| Hint value | Description |
+|---|---|
+| `deferred_code` | Token type hint for a deferred code submitted to the revocation endpoint. |
 
 ## OAuth URI Registry
 
