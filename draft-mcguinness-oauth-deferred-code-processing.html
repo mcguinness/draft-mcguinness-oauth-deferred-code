@@ -1403,16 +1403,13 @@ svg {
                 </ul>
 </li>
               <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.15.2.3">
-                <p id="section-toc.1-1.15.2.3.1"><a href="#section-15.3" class="auto internal xref">15.3</a>.  <a href="#name-notification-request" class="internal xref">Notification Request</a></p>
+                <p id="section-toc.1-1.15.2.3.1"><a href="#section-15.3" class="auto internal xref">15.3</a>.  <a href="#name-notification-request-and-re" class="internal xref">Notification Request and Response</a></p>
 </li>
               <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.15.2.4">
-                <p id="section-toc.1-1.15.2.4.1"><a href="#section-15.4" class="auto internal xref">15.4</a>.  <a href="#name-notification-response" class="internal xref">Notification Response</a></p>
+                <p id="section-toc.1-1.15.2.4.1"><a href="#section-15.4" class="auto internal xref">15.4</a>.  <a href="#name-client-behavior-2" class="internal xref">Client Behavior</a></p>
 </li>
               <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.15.2.5">
-                <p id="section-toc.1-1.15.2.5.1"><a href="#section-15.5" class="auto internal xref">15.5</a>.  <a href="#name-client-behavior-2" class="internal xref">Client Behavior</a></p>
-</li>
-              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.15.2.6">
-                <p id="section-toc.1-1.15.2.6.1"><a href="#section-15.6" class="auto internal xref">15.6</a>.  <a href="#name-authorization-server-behavio" class="internal xref">Authorization Server Behavior</a></p>
+                <p id="section-toc.1-1.15.2.5.1"><a href="#section-15.5" class="auto internal xref">15.5</a>.  <a href="#name-authorization-server-behavio" class="internal xref">Authorization Server Behavior</a></p>
 </li>
             </ul>
 </li>
@@ -2086,9 +2083,7 @@ appear in all capitals, as shown here.<a href="#section-2-1" class="pilcrow">¶<
 </li>
       </ul>
 <p id="section-5-4">The authorization server <span class="bcp14">MUST</span> bind the <code>deferred_code</code> to the originating request and associated client security context.<a href="#section-5-4" class="pilcrow">¶</a></p>
-<p id="section-5-5">The authorization server <span class="bcp14">MAY</span> rotate deferred codes during continuation processing.<a href="#section-5-5" class="pilcrow">¶</a></p>
-<p id="section-5-6">If the authorization server issues a replacement deferred code, the client <span class="bcp14">MUST</span> discard the previous value.<a href="#section-5-6" class="pilcrow">¶</a></p>
-<p id="section-5-7">If a deferred code is not sender-constrained or otherwise bound to proof-of-possession material, the authorization server <span class="bcp14">MUST</span> rotate the deferred code after each valid continuation request that returns <code>authorization_pending</code>, <code>interaction_required</code>, or <code>slow_down</code>. Authorization servers <span class="bcp14">MUST</span> use one-time-use deferred codes or an equivalent replay-resistant mechanism for deferred requests involving one-time credentials, high-value resources, public clients, or externally exposed interaction URIs.<a href="#section-5-7" class="pilcrow">¶</a></p>
+<p id="section-5-5">The authorization server <span class="bcp14">MAY</span> rotate deferred codes during continuation processing; if a replacement is issued, the client <span class="bcp14">MUST</span> discard the previous value. If a deferred code is not sender-constrained or otherwise bound to proof-of-possession material, the authorization server <span class="bcp14">MUST</span> rotate it after each valid continuation request that returns <code>authorization_pending</code>, <code>interaction_required</code>, or <code>slow_down</code>. Authorization servers <span class="bcp14">MUST</span> use one-time-use deferred codes or an equivalent replay-resistant mechanism for deferred requests involving one-time credentials, high-value resources, public clients, or externally exposed interaction URIs.<a href="#section-5-5" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="deferred-processing">
@@ -2543,12 +2538,10 @@ Location: https://client.example.com/cb?
         <h3 id="name-pkce-for-deferred-authoriza">
 <a href="#section-9.3" class="section-number selfRef">9.3. </a><a href="#name-pkce-for-deferred-authoriza" class="section-name selfRef">PKCE for Deferred Authorization Responses</a>
         </h3>
-<p id="section-9.3-1">When the originating authorization request included a <code>code_challenge</code> parameter as defined by <span>[<a href="#RFC7636" class="cite xref">RFC7636</a>]</span>, the authorization server <span class="bcp14">MUST</span> associate the corresponding <code>code_challenge</code> and <code>code_challenge_method</code> values with the deferred processing state.<a href="#section-9.3-1" class="pilcrow">¶</a></p>
-<p id="section-9.3-2">PKCE verification cannot be performed at the authorization endpoint because the client has not yet presented the <code>code_verifier</code>. The first continuation request following a deferred authorization response <span class="bcp14">MUST</span> include the <code>code_verifier</code> parameter when PKCE was used on the originating authorization request, and the authorization server <span class="bcp14">MUST</span> verify the verifier against the stored <code>code_challenge</code> using the stored <code>code_challenge_method</code> before completing the deferred processing.<a href="#section-9.3-2" class="pilcrow">¶</a></p>
-<p id="section-9.3-3">This is an exception to the general prohibition in <a href="#continuation-request" class="auto internal xref">Section 12.2</a> on presenting <code>code_verifier</code> on continuation requests. The exception applies only to the first continuation request following a deferred authorization response, and only when PKCE was used on the originating authorization request. The <code>code_verifier</code> <span class="bcp14">MUST NOT</span> be re-presented on subsequent continuation requests; after the first continuation, PKCE verification state is preserved in the deferred processing state.<a href="#section-9.3-3" class="pilcrow">¶</a></p>
-<p id="section-9.3-4">If PKCE verification fails, the authorization server <span class="bcp14">MUST</span> reject the continuation request with <code>invalid_grant</code> and <span class="bcp14">MUST</span> terminate the deferred processing state.<a href="#section-9.3-4" class="pilcrow">¶</a></p>
-<p id="section-9.3-5">For authorization endpoint deferral of public client authorization requests, PKCE is <span class="bcp14">REQUIRED</span> in accordance with <span>[<a href="#RFC9700" class="cite xref">RFC9700</a>]</span>. The <code>code_verifier</code> presented on the first continuation request serves as the continuation binding for the originating public client, in combination with any other binding mechanism applicable to the originating request.<a href="#section-9.3-5" class="pilcrow">¶</a></p>
-<p id="section-9.3-6">When the originating authorization request additionally signals a sender-constraining key, for example via a DPoP key JWK thumbprint mechanism associated with <span>[<a href="#RFC9449" class="cite xref">RFC9449</a>]</span> or via mutual-TLS client certificate binding <span>[<a href="#RFC8705" class="cite xref">RFC8705</a>]</span> expressed at the authorization endpoint, the authorization server <span class="bcp14">MUST</span> bind the deferred processing state to that key or certificate thumbprint. Each continuation request <span class="bcp14">MUST</span> use the corresponding proof or certificate binding as defined in <a href="#continuation-request" class="auto internal xref">Section 12.2</a>. The specific mechanism by which the authorization request conveys a sender-constraining key is out of scope for this specification.<a href="#section-9.3-6" class="pilcrow">¶</a></p>
+<p id="section-9.3-1">When the originating authorization request included a <code>code_challenge</code> parameter as defined by <span>[<a href="#RFC7636" class="cite xref">RFC7636</a>]</span>, the authorization server <span class="bcp14">MUST</span> associate the corresponding <code>code_challenge</code> and <code>code_challenge_method</code> values with the deferred processing state. PKCE verification cannot occur at the authorization endpoint because the client has not yet presented the <code>code_verifier</code>.<a href="#section-9.3-1" class="pilcrow">¶</a></p>
+<p id="section-9.3-2">As an exception to the general prohibition in <a href="#continuation-request" class="auto internal xref">Section 12.2</a>, the first continuation request following a deferred authorization response <span class="bcp14">MUST</span> include the <code>code_verifier</code> parameter when PKCE was used, and the authorization server <span class="bcp14">MUST</span> verify it against the stored <code>code_challenge</code> using the stored <code>code_challenge_method</code>. The <code>code_verifier</code> <span class="bcp14">MUST NOT</span> be re-presented on subsequent continuation requests; PKCE verification state is preserved in the deferred processing state after the first continuation. If verification fails, the authorization server <span class="bcp14">MUST</span> reject the continuation request with <code>invalid_grant</code> and <span class="bcp14">MUST</span> terminate the deferred processing state.<a href="#section-9.3-2" class="pilcrow">¶</a></p>
+<p id="section-9.3-3">For authorization endpoint deferral of public client authorization requests, PKCE is <span class="bcp14">REQUIRED</span> in accordance with <span>[<a href="#RFC9700" class="cite xref">RFC9700</a>]</span>. The <code>code_verifier</code> presented on the first continuation request serves as the continuation binding for the originating public client, in combination with any other binding mechanism applicable to the originating request.<a href="#section-9.3-3" class="pilcrow">¶</a></p>
+<p id="section-9.3-4">When the originating authorization request additionally signals a sender-constraining key (for example, via DPoP <span>[<a href="#RFC9449" class="cite xref">RFC9449</a>]</span> or mutual-TLS client certificate binding <span>[<a href="#RFC8705" class="cite xref">RFC8705</a>]</span> expressed at the authorization endpoint), the authorization server <span class="bcp14">MUST</span> bind the deferred processing state to that key or certificate thumbprint, and each continuation request <span class="bcp14">MUST</span> use the corresponding binding as defined in <a href="#continuation-request" class="auto internal xref">Section 12.2</a>. The mechanism by which the authorization request conveys a sender-constraining key is out of scope for this specification.<a href="#section-9.3-4" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="authorization-endpoint-errors">
@@ -2556,9 +2549,8 @@ Location: https://client.example.com/cb?
         <h3 id="name-authorization-endpoint-erro">
 <a href="#section-9.4" class="section-number selfRef">9.4. </a><a href="#name-authorization-endpoint-erro" class="section-name selfRef">Authorization Endpoint Errors</a>
         </h3>
-<p id="section-9.4-1">When the authorization server cannot create deferred processing state for an authorization request, it returns the appropriate authorization endpoint error response defined by <span>[<a href="#RFC6749" class="cite xref">RFC6749</a>]</span> in place of a deferred authorization response. The authorization server <span class="bcp14">MUST NOT</span> issue a <code>deferred_code</code> to defer reporting of a known-fatal error.<a href="#section-9.4-1" class="pilcrow">¶</a></p>
-<p id="section-9.4-2">If the <code>redirect_uri</code> cannot be validated, the authorization server <span class="bcp14">MUST NOT</span> redirect the user agent to the unvalidated URI and <span class="bcp14">MUST</span> handle the failure as required by <span>[<a href="#RFC6749" class="cite xref">RFC6749</a>]</span> for invalid redirect URIs, typically by displaying an error to the resource owner. In particular, the authorization server <span class="bcp14">MUST NOT</span> issue a <code>deferred_code</code> to an unvalidated redirect URI.<a href="#section-9.4-2" class="pilcrow">¶</a></p>
-<p id="section-9.4-3">A complete worked example of front-channel step-up using authorization endpoint deferral, including the PKCE-on-first-continuation handshake and a notification token, appears in the §Authorization Endpoint Deferral with Step-Up example in the appendix.<a href="#section-9.4-3" class="pilcrow">¶</a></p>
+<p id="section-9.4-1">When the authorization server cannot create deferred processing state for an authorization request, it returns the appropriate authorization endpoint error response defined by <span>[<a href="#RFC6749" class="cite xref">RFC6749</a>]</span> in place of a deferred authorization response. The authorization server <span class="bcp14">MUST NOT</span> issue a <code>deferred_code</code> to defer reporting of a known-fatal error or to a <code>redirect_uri</code> that cannot be validated; invalid redirect URIs are handled per <span>[<a href="#RFC6749" class="cite xref">RFC6749</a>]</span>.<a href="#section-9.4-1" class="pilcrow">¶</a></p>
+<p id="section-9.4-2">A complete worked example of front-channel step-up using authorization endpoint deferral appears in <a href="#authorization-endpoint-deferral-with-step-up" class="auto internal xref">Appendix D.2</a> in the appendix.<a href="#section-9.4-2" class="pilcrow">¶</a></p>
 </section>
 </div>
 </section>
@@ -2872,9 +2864,8 @@ urn:ietf:params:oauth:grant-type:deferred_code
 <p id="section-12.2-5">Higher-layer profiles <span class="bcp14">MAY</span> define mechanisms outside the deferred code grant type itself for updating the parameters preserved in the deferred processing state. Such mechanisms <span class="bcp14">MUST</span> enforce that updates only narrow the originally requested authorization (subset of requested scopes, resources, audiences, and authorization details), never expanding it. The continuation grant type itself never carries modified parameters; updated parameters reach the deferred processing state through the profile-defined mechanism, and the continuation request continues to use the existing <code>deferred_code</code> to observe the updated state.<a href="#section-12.2-5" class="pilcrow">¶</a></p>
 <p id="section-12.2-6">If the originating request was made by an authenticated client, the continuation request <span class="bcp14">MUST</span> authenticate the same client. If the originating request was made by an unauthenticated client that included a <code>client_id</code>, the continuation request <span class="bcp14">MUST</span> include the same <code>client_id</code>. If the originating request used sender-constrained client authentication or proof-of-possession material, the authorization server <span class="bcp14">MUST</span> apply equivalent sender-constraining requirements to the continuation request.<a href="#section-12.2-6" class="pilcrow">¶</a></p>
 <p id="section-12.2-7">When the client uses a client authentication mechanism that requires a fresh credential per request, such as the <code>client_assertion</code> and <code>client_assertion_type</code> parameters defined by <span>[<a href="#RFC7521" class="cite xref">RFC7521</a>]</span>, the continuation request <span class="bcp14">MAY</span> present a freshly minted credential of the same type that authenticates the same client. The authorization server <span class="bcp14">MUST</span> verify that the freshly presented client credential identifies the client bound to the deferred processing state.<a href="#section-12.2-7" class="pilcrow">¶</a></p>
-<p id="section-12.2-8">If the originating request included a valid DPoP proof <span>[<a href="#RFC9449" class="cite xref">RFC9449</a>]</span>, the authorization server <span class="bcp14">MUST</span> bind the deferred processing state to the DPoP public key thumbprint. Each continuation request <span class="bcp14">MUST</span> include a valid DPoP proof for the token endpoint, and the DPoP proof key <span class="bcp14">MUST</span> match the key bound to the deferred processing state. If the DPoP proof is invalid, the authorization server returns the error response defined by <span>[<a href="#RFC9449" class="cite xref">RFC9449</a>]</span>. If the proof is valid but does not match the deferred processing state binding, the authorization server <span class="bcp14">MUST</span> reject the continuation request with <code>invalid_grant</code>.<a href="#section-12.2-8" class="pilcrow">¶</a></p>
-<p id="section-12.2-9">If the originating request used mutual-TLS client certificate binding <span>[<a href="#RFC8705" class="cite xref">RFC8705</a>]</span>, the authorization server <span class="bcp14">MUST</span> bind the deferred processing state to the certificate or certificate thumbprint used for the originating request. Each continuation request <span class="bcp14">MUST</span> use certificate binding that matches the deferred processing state. If the certificate binding does not match, the authorization server <span class="bcp14">MUST</span> reject the continuation request with <code>invalid_grant</code>.<a href="#section-12.2-9" class="pilcrow">¶</a></p>
-<p id="section-12.2-10">If the access token produced by successful completion is sender-constrained, the confirmation or binding material for that access token <span class="bcp14">MUST</span> be derived from the originating request and continuation security context. The authorization server <span class="bcp14">MUST NOT</span> allow a continuation request to replace sender-constraining key material from the originating request.<a href="#section-12.2-10" class="pilcrow">¶</a></p>
+<p id="section-12.2-8">If the originating request used DPoP <span>[<a href="#RFC9449" class="cite xref">RFC9449</a>]</span> or mutual-TLS client certificate binding <span>[<a href="#RFC8705" class="cite xref">RFC8705</a>]</span>, the authorization server <span class="bcp14">MUST</span> bind the deferred processing state to the corresponding DPoP key thumbprint or certificate thumbprint. Each continuation request <span class="bcp14">MUST</span> present the same binding; if it does not match the deferred processing state, the authorization server <span class="bcp14">MUST</span> reject the continuation request with <code>invalid_grant</code>. Invalid DPoP proofs are rejected with the error response defined by <span>[<a href="#RFC9449" class="cite xref">RFC9449</a>]</span>.<a href="#section-12.2-8" class="pilcrow">¶</a></p>
+<p id="section-12.2-9">If the access token produced by successful completion is sender-constrained, the confirmation or binding material for that access token <span class="bcp14">MUST</span> be derived from the originating request and continuation security context. The authorization server <span class="bcp14">MUST NOT</span> allow a continuation request to replace sender-constraining key material from the originating request.<a href="#section-12.2-9" class="pilcrow">¶</a></p>
 <div id="example-3">
 <section id="section-12.2.1">
           <h4 id="name-example-4">
@@ -3129,24 +3120,13 @@ client_id=s6BhdRkqt3
 </div>
 </section>
 </div>
-<div id="notification-request">
+<div id="notification-request-and-response">
 <section id="section-15.3">
-        <h3 id="name-notification-request">
-<a href="#section-15.3" class="section-number selfRef">15.3. </a><a href="#name-notification-request" class="section-name selfRef">Notification Request</a>
+        <h3 id="name-notification-request-and-re">
+<a href="#section-15.3" class="section-number selfRef">15.3. </a><a href="#name-notification-request-and-re" class="section-name selfRef">Notification Request and Response</a>
         </h3>
-<p id="section-15.3-1">When the authorization server elects to send a notification, it sends an HTTPS POST request to the client's registered notification endpoint with the following:<a href="#section-15.3-1" class="pilcrow">¶</a></p>
-<ul class="normal">
-<li class="normal" id="section-15.3-2.1">
-            <p id="section-15.3-2.1.1">an <code>Authorization</code> header containing <code>Bearer</code> followed by the current <code>notification_token</code> value,<a href="#section-15.3-2.1.1" class="pilcrow">¶</a></p>
-</li>
-          <li class="normal" id="section-15.3-2.2">
-            <p id="section-15.3-2.2.1">a <code>Content-Type</code> header of <code>application/json</code>,<a href="#section-15.3-2.2.1" class="pilcrow">¶</a></p>
-</li>
-          <li class="normal" id="section-15.3-2.3">
-            <p id="section-15.3-2.3.1">a JSON body containing the affected <code>deferred_code</code>.<a href="#section-15.3-2.3.1" class="pilcrow">¶</a></p>
-</li>
-        </ul>
-<div class="lang-http sourcecode" id="section-15.3-3">
+<p id="section-15.3-1">The authorization server sends notifications as HTTPS POST to the client's registered endpoint with <code>Authorization: Bearer &lt;notification_token&gt;</code>, <code>Content-Type: application/json</code>, and a JSON body containing the affected <code>deferred_code</code>:<a href="#section-15.3-1" class="pilcrow">¶</a></p>
+<div class="lang-http sourcecode" id="section-15.3-2">
 <pre>
 POST /deferred-notify HTTP/1.1
 Host: client.example.com
@@ -3154,38 +3134,29 @@ Authorization: Bearer 9d2f...
 Content-Type: application/json
 
 {"deferred_code": "8N5B2K1"}
-</pre><a href="#section-15.3-3" class="pilcrow">¶</a>
+</pre><a href="#section-15.3-2" class="pilcrow">¶</a>
 </div>
-<p id="section-15.3-4">The authorization server <span class="bcp14">MUST NOT</span> include access tokens, identity claims, processing results, or other state in the notification body. The notification conveys only that the deferred processing state has changed.<a href="#section-15.3-4" class="pilcrow">¶</a></p>
-</section>
-</div>
-<div id="notification-response">
-<section id="section-15.4">
-        <h3 id="name-notification-response">
-<a href="#section-15.4" class="section-number selfRef">15.4. </a><a href="#name-notification-response" class="section-name selfRef">Notification Response</a>
-        </h3>
-<p id="section-15.4-1">The client <span class="bcp14">SHOULD</span> respond with HTTP status <code>200 OK</code> or <code>204 No Content</code> and <span class="bcp14">MUST NOT</span> include processing results in the response body.<a href="#section-15.4-1" class="pilcrow">¶</a></p>
-<p id="section-15.4-2">The authorization server <span class="bcp14">MUST NOT</span> follow HTTP redirects from the notification endpoint and <span class="bcp14">MUST</span> treat any 3xx response as a delivery failure.<a href="#section-15.4-2" class="pilcrow">¶</a></p>
-<p id="section-15.4-3">The authorization server <span class="bcp14">MAY</span> retry notification delivery using an exponential backoff. The authorization server <span class="bcp14">MUST NOT</span> depend on successful notification delivery; deferred processing state remains authoritative and is obtained through continuation requests.<a href="#section-15.4-3" class="pilcrow">¶</a></p>
+<p id="section-15.3-3">The body <span class="bcp14">MUST NOT</span> contain access tokens, identity claims, processing results, or other state; the notification conveys only that the deferred processing state has changed.<a href="#section-15.3-3" class="pilcrow">¶</a></p>
+<p id="section-15.3-4">The client <span class="bcp14">SHOULD</span> respond with <code>200 OK</code> or <code>204 No Content</code> and <span class="bcp14">MUST NOT</span> include processing results in the response body. The authorization server <span class="bcp14">MUST NOT</span> follow HTTP redirects (any 3xx response is a delivery failure) and <span class="bcp14">MAY</span> retry delivery with exponential backoff. The authorization server <span class="bcp14">MUST NOT</span> depend on successful notification delivery; deferred processing state remains observable through continuation requests.<a href="#section-15.3-4" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="notification-client-behavior">
-<section id="section-15.5">
+<section id="section-15.4">
         <h3 id="name-client-behavior-2">
-<a href="#section-15.5" class="section-number selfRef">15.5. </a><a href="#name-client-behavior-2" class="section-name selfRef">Client Behavior</a>
+<a href="#section-15.4" class="section-number selfRef">15.4. </a><a href="#name-client-behavior-2" class="section-name selfRef">Client Behavior</a>
         </h3>
-<p id="section-15.5-1">A client that receives a notification <span class="bcp14">MUST</span> validate the bearer credential in the <code>Authorization</code> header against the most recent <code>notification_token</code> issued for the deferred code identified in the notification body. If the credential is missing, malformed, or does not match a known notification token, the client <span class="bcp14">MUST</span> reject the notification.<a href="#section-15.5-1" class="pilcrow">¶</a></p>
-<p id="section-15.5-2">After validating a notification, the client <span class="bcp14">SHOULD</span> submit a continuation request to obtain the current processing state. The notification itself does not convey result data.<a href="#section-15.5-2" class="pilcrow">¶</a></p>
-<p id="section-15.5-3">A client <span class="bcp14">MUST NOT</span> rely on receiving a notification. Polling at the interval indicated by the authorization server remains required when no notification has been received.<a href="#section-15.5-3" class="pilcrow">¶</a></p>
+<p id="section-15.4-1">A client that receives a notification <span class="bcp14">MUST</span> validate the bearer credential in the <code>Authorization</code> header against the most recent <code>notification_token</code> issued for the deferred code identified in the notification body. If the credential is missing, malformed, or does not match a known notification token, the client <span class="bcp14">MUST</span> reject the notification.<a href="#section-15.4-1" class="pilcrow">¶</a></p>
+<p id="section-15.4-2">After validating a notification, the client <span class="bcp14">SHOULD</span> submit a continuation request to obtain the current processing state. The notification itself does not convey result data.<a href="#section-15.4-2" class="pilcrow">¶</a></p>
+<p id="section-15.4-3">A client <span class="bcp14">MUST NOT</span> rely on receiving a notification. Polling at the interval indicated by the authorization server remains required when no notification has been received.<a href="#section-15.4-3" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="authorization-server-behavior-1">
-<section id="section-15.6">
+<section id="section-15.5">
         <h3 id="name-authorization-server-behavio">
-<a href="#section-15.6" class="section-number selfRef">15.6. </a><a href="#name-authorization-server-behavio" class="section-name selfRef">Authorization Server Behavior</a>
+<a href="#section-15.5" class="section-number selfRef">15.5. </a><a href="#name-authorization-server-behavio" class="section-name selfRef">Authorization Server Behavior</a>
         </h3>
-<p id="section-15.6-1">The authorization server <span class="bcp14">MAY</span> deliver a notification on any state transition, including transitions to Pending, Interaction Required, Complete, Denied, or Expired. The authorization server <span class="bcp14">MUST</span> validate the registered notification endpoint URL prior to delivery.<a href="#section-15.6-1" class="pilcrow">¶</a></p>
-<p id="section-15.6-2">The authorization server <span class="bcp14">MUST</span> authenticate the notification request using only the issued <code>notification_token</code>. The authorization server <span class="bcp14">MUST NOT</span> include client credentials or other long-lived secrets in the notification request.<a href="#section-15.6-2" class="pilcrow">¶</a></p>
+<p id="section-15.5-1">The authorization server <span class="bcp14">MAY</span> deliver a notification on any state transition, including transitions to Pending, Interaction Required, Complete, Denied, or Expired. The authorization server <span class="bcp14">MUST</span> validate the registered notification endpoint URL prior to delivery.<a href="#section-15.5-1" class="pilcrow">¶</a></p>
+<p id="section-15.5-2">The authorization server <span class="bcp14">MUST</span> authenticate the notification request using only the issued <code>notification_token</code>. The authorization server <span class="bcp14">MUST NOT</span> include client credentials or other long-lived secrets in the notification request.<a href="#section-15.5-2" class="pilcrow">¶</a></p>
 </section>
 </div>
 </section>
@@ -3205,7 +3176,7 @@ Content-Type: application/json
         </h3>
 <p id="section-16.1-1">An authorization server <span class="bcp14">MAY</span> defer processing during authorization code redemption.<a href="#section-16.1-1" class="pilcrow">¶</a></p>
 <p id="section-16.1-2">If an authorization server defers authorization code redemption, it <span class="bcp14">MUST</span> treat the authorization code as consumed or otherwise unusable outside the deferred processing state. A later continuation request resumes the deferred redemption; it is not a second authorization code redemption attempt. The authorization server <span class="bcp14">MUST</span> preserve PKCE <span>[<a href="#RFC7636" class="cite xref">RFC7636</a>]</span> verification results, redirect URI validation, client binding, and any other authorization code grant checks performed before deferral.<a href="#section-16.1-2" class="pilcrow">¶</a></p>
-<p id="section-16.1-3">PKCE verification, including comparison of the <code>code_verifier</code> against the previously stored <code>code_challenge</code> as defined by <span>[<a href="#RFC7636" class="cite xref">RFC7636</a>]</span>, <span class="bcp14">MUST</span> occur during evaluation of the originating token request, before the authorization server creates deferred processing state. The <code>code_verifier</code> is consumed at that point and <span class="bcp14">MUST NOT</span> be re-presented on continuation requests, consistent with the prohibition on resubmitting originating request parameters in <a href="#continuation-request" class="auto internal xref">Section 12.2</a>. Continuation requests rely on the PKCE verification result preserved in deferred processing state. This rule applies to deferral of authorization code redemption at the token endpoint; the rules for authorization endpoint deferral are defined in <a href="#authorization-endpoint-pkce" class="auto internal xref">Section 9.3</a>.<a href="#section-16.1-3" class="pilcrow">¶</a></p>
+<p id="section-16.1-3">PKCE verification (comparison of <code>code_verifier</code> against the stored <code>code_challenge</code> per <span>[<a href="#RFC7636" class="cite xref">RFC7636</a>]</span>) <span class="bcp14">MUST</span> occur during evaluation of the originating token request, before deferred processing state is created. The <code>code_verifier</code> is consumed at that point and <span class="bcp14">MUST NOT</span> be re-presented on continuation requests; continuation requests rely on the preserved verification result. Rules for authorization endpoint deferral are in <a href="#authorization-endpoint-pkce" class="auto internal xref">Section 9.3</a>.<a href="#section-16.1-3" class="pilcrow">¶</a></p>
 <p id="section-16.1-4">A profile <span class="bcp14">MAY</span> define partial completion for the authorization code grant, for example by issuing a partial access token covering a subset of requested scopes together with a <code>deferred_code</code> for the upgrade.<a href="#section-16.1-4" class="pilcrow">¶</a></p>
 </section>
 </div>
