@@ -3,9 +3,9 @@
 
 
 Web Authorization Protocol                                 K. McGuinness
-Internet-Draft                                               31 May 2026
+Internet-Draft                                               1 June 2026
 Intended status: Standards Track                                        
-Expires: 2 December 2026
+Expires: 3 December 2026
 
 
                  OAuth 2.0 Deferred Request Processing
@@ -23,8 +23,7 @@ Abstract
    a partial completion that issues an artifact reflecting currently-
    available authorization together with a deferred_code for
    asynchronously upgrading the remainder.  Clients express acceptance
-   of deferred or partial completion through the grant_mode request
-   parameter.
+   of deferred completion through the completion_mode request parameter.
 
    Existing OAuth and OpenID Connect mechanisms such as the OAuth 2.0
    Device Authorization Grant [RFC8628] and OpenID Connect CIBA [CIBA]
@@ -73,7 +72,7 @@ Status of This Memo
    time.  It is inappropriate to use Internet-Drafts as reference
    material or to cite them other than as "work in progress."
 
-   This Internet-Draft will expire on 2 December 2026.
+   This Internet-Draft will expire on 3 December 2026.
 
 Copyright Notice
 
@@ -116,111 +115,110 @@ Table of Contents
        6.5.3.  Additional Requirements for Credential Delivery
        6.5.4.  Built-in Notification Mechanism
        6.5.5.  Worked Examples
-   7.  Grant Mode Parameter
+   7.  Completion Mode Parameter
      7.1.  Syntax
      7.2.  Semantics
      7.3.  Defined Values
      7.4.  Authorization Server Processing
-     7.5.  Relationship to Existing OAuth Multi-Valued Request
-           Parameters
-     7.6.  Relationship to Other Grant- and Response-Family Parameters
-   8.  Authorization Endpoint Extensions
-     8.1.  Deferred Authorization Response
-       8.1.1.  Example
-     8.2.  Client Processing of Deferred Authorization Responses
-     8.3.  PKCE for Deferred Authorization Responses
-     8.4.  Authorization Endpoint Errors
-     8.5.  Example: Front-Channel Step-Up
-   9.  Token Endpoint Extensions
-     9.1.  Deferred Processing Responses
-     9.2.  Deferred Error Semantics
-     9.3.  Authorization Pending
-       9.3.1.  Example
-     9.4.  Interaction Required
-       9.4.1.  Example
-     9.5.  Deferred Code Parameter
-     9.6.  Interaction URI Parameter
-     9.7.  Interval Parameter
-     9.8.  Expires In Parameter
-     9.9.  Deferred Code Expires In Parameter
-   10. Partial Completion
-     10.1.  Wire Shape
-     10.2.  Continuation
-     10.3.  Client Handling of Unrecognized Partial Completion
-   11. Deferred Code Grant Type
-     11.1.  Grant Type
-     11.2.  Continuation Request
-       11.2.1.  Example
-   12. Continuation Responses
-     12.1.  Still Pending
-     12.2.  Interaction Required
-     12.3.  Polling Too Frequent
-     12.4.  Successful Completion
-       12.4.1.  Example
-     12.5.  Unsuccessful Completion
-     12.6.  Expired Deferred Code
-     12.7.  Invalid Deferred Code
-   13. Cancellation
-   14. Notification
-     14.1.  Client Notification Endpoint
-     14.2.  Notification Token Parameter
-       14.2.1.  Example
-     14.3.  Notification Request
-     14.4.  Notification Response
-     14.5.  Client Behavior
-     14.6.  Authorization Server Behavior
-   15. Per-Grant-Type Considerations
-     15.1.  Authorization Code Grant
-     15.2.  Refresh Token Grant
-     15.3.  Client Credentials Grant
-     15.4.  Token Exchange
-       15.4.1.  Example
-     15.5.  Rich Authorization Requests
-     15.6.  Assertion Grants
-       15.6.1.  JWT Bearer Example
-   16. Authorization Server Metadata
-     16.1.  Deferred Code Processing Supported Metadata
-     16.2.  Deferred Code Grant Types Supported Metadata
-     16.3.  Deferred Code Authorization Endpoint Supported Metadata
-     16.4.  Deferred Code Notification Supported Metadata
+   8.  Relationship to Existing OAuth Request Parameters
+     8.1.  Relationship to Grant- and Response-Family Parameters
+   9.  Authorization Endpoint Extensions
+     9.1.  Deferred Authorization Response
+       9.1.1.  Example
+     9.2.  Client Processing of Deferred Authorization Responses
+     9.3.  PKCE for Deferred Authorization Responses
+     9.4.  Authorization Endpoint Errors
+     9.5.  Example: Front-Channel Step-Up
+   10. Token Endpoint Extensions
+     10.1.  Deferred Processing Responses
+     10.2.  Deferred Error Semantics
+     10.3.  Authorization Pending
+       10.3.1.  Example
+     10.4.  Interaction Required
+       10.4.1.  Example
+     10.5.  Deferred Code Parameter
+     10.6.  Interaction URI Parameter
+     10.7.  Interval Parameter
+     10.8.  Expires In Parameter
+     10.9.  Deferred Code Expires In Parameter
+   11. Partial Completion
+     11.1.  Wire Shape
+     11.2.  Continuation
+     11.3.  Client Handling of Unrecognized Partial Completion
+   12. Deferred Code Grant Type
+     12.1.  Grant Type
+     12.2.  Continuation Request
+       12.2.1.  Example
+   13. Continuation Responses
+     13.1.  Still Pending
+     13.2.  Interaction Required
+     13.3.  Polling Too Frequent
+     13.4.  Successful Completion
+       13.4.1.  Example
+     13.5.  Unsuccessful Completion
+     13.6.  Expired Deferred Code
+     13.7.  Invalid Deferred Code
+   14. Cancellation
+   15. Notification
+     15.1.  Client Notification Endpoint
+     15.2.  Notification Token Parameter
+       15.2.1.  Example
+     15.3.  Notification Request
+     15.4.  Notification Response
+     15.5.  Client Behavior
+     15.6.  Authorization Server Behavior
+   16. Per-Grant-Type Considerations
+     16.1.  Authorization Code Grant
+     16.2.  Refresh Token Grant
+     16.3.  Client Credentials Grant
+     16.4.  Token Exchange
        16.4.1.  Example
-   17. Security Considerations
-     17.1.  Deferred Code Entropy
-     17.2.  Deferred Code Binding
-     17.3.  Proof-of-Possession Continuity
-     17.4.  Client Authentication
-     17.5.  Deferred Code Replay
-     17.6.  Deferred Code Rotation
-     17.7.  Authorization Endpoint Deferral
-     17.8.  Partial Completion
-     17.9.  Interaction URI Protection
-     17.10. Concurrent Continuation Requests
-     17.11. Continuation Request Rate Limiting
-     17.12. Deferred Processing Lifetime
-     17.13. Authorization Scope Stability
-     17.14. Oracle Resistance
-     17.15. Security Event Logging
-     17.16. Cancellation Authorization
-     17.17. Notification Endpoint Protection
-     17.18. Notification Token Protection
-     17.19. Notification Information Leakage
-     17.20. Privacy Considerations
-   18. IANA Considerations
-     18.1.  OAuth Parameters Registry
-     18.2.  OAuth Grant Mode Values Registry
-     18.3.  OAuth Authorization Server Metadata Registry
-     18.4.  OAuth Dynamic Client Registration Metadata Registry
-     18.5.  OAuth URI Registry
-     18.6.  OAuth Extensions Error Registry
-   19. References
-     19.1.  Normative References
-     19.2.  Informative References
+     16.5.  Rich Authorization Requests
+     16.6.  Assertion Grants
+       16.6.1.  JWT Bearer Example
+   17. Authorization Server Metadata
+     17.1.  Deferred Code Processing Supported Metadata
+     17.2.  Deferred Code Grant Types Supported Metadata
+     17.3.  Deferred Code Authorization Endpoint Supported Metadata
+     17.4.  Deferred Code Notification Supported Metadata
+       17.4.1.  Example
+   18. Security Considerations
+     18.1.  Deferred Code Entropy
+     18.2.  Deferred Code Binding
+     18.3.  Proof-of-Possession Continuity
+     18.4.  Client Authentication
+     18.5.  Deferred Code Replay
+     18.6.  Deferred Code Rotation
+     18.7.  Authorization Endpoint Deferral
+     18.8.  Partial Completion
+     18.9.  Interaction URI Protection
+     18.10. Concurrent Continuation Requests
+     18.11. Continuation Request Rate Limiting
+     18.12. Deferred Processing Lifetime
+     18.13. Authorization Scope Stability
+     18.14. Oracle Resistance
+     18.15. Security Event Logging
+     18.16. Cancellation Authorization
+     18.17. Notification Endpoint Protection
+     18.18. Notification Token Protection
+     18.19. Notification Information Leakage
+     18.20. Privacy Considerations
+   19. IANA Considerations
+     19.1.  OAuth Parameters Registry
+     19.2.  OAuth Completion Mode Values Registry
+     19.3.  OAuth Authorization Server Metadata Registry
+     19.4.  OAuth Dynamic Client Registration Metadata Registry
+     19.5.  OAuth URI Registry
+     19.6.  OAuth Extensions Error Registry
+   20. References
+     20.1.  Normative References
+     20.2.  Informative References
    Appendix A.  Design Rationale
      A.1.  Why a Unified Deferred Processing Layer
      A.2.  Why Token Endpoint Continuation Regardless of Originating
            Endpoint
      A.3.  Why the Error Response Encoding
-     A.4.  Why the Grant Mode Parameter
+     A.4.  Why the Completion Mode Parameter
    Appendix B.  Relationship to Existing OAuth Asynchronous Mechanisms
      B.1.  Relationship to OAuth Device Authorization Grant
      B.2.  Relationship to OpenID Connect CIBA
@@ -287,7 +285,7 @@ Table of Contents
    interaction; OpenID Connect implementations that recognize
    interaction_required only at the authorization endpoint will need to
    handle it at the token endpoint when this specification is supported.
-   The registry update is described in Section 18.
+   The registry update is described in Section 19.
 
    This specification defines:
 
@@ -297,8 +295,7 @@ Table of Contents
    *  the deferred_code continuation reference and the deferred code
       grant type for continuation at the token endpoint,
 
-   *  the grant_mode request parameter for client opt-in and future
-      profile extensibility,
+   *  the completion_mode request parameter for client opt-in,
 
    *  deferred authorization responses delivered through the user agent
       redirect,
@@ -363,10 +360,10 @@ Table of Contents
 
    Deferred Authorization Response:  An authorization endpoint response
       that conveys a deferred_code to the client through the redirection
-      endpoint, as defined in Section 8.
+      endpoint, as defined in Section 9.
 
    Deferred Processing Response:  A token endpoint response that conveys
-      a deferred_code to the client, as defined in Section 9.1.
+      a deferred_code to the client, as defined in Section 10.1.
 
    Deferred Processing State:  Authorization server state associated
       with a deferred request, including the originating request
@@ -487,7 +484,7 @@ Table of Contents
 
    *  resource server processing for deferred codes.
 
-   The notification mode defined in Section 14 signals state changes
+   The notification mode defined in Section 15 signals state changes
    only and does not deliver tokens or identity claims to the client.
    Profile-defined advisory delivery channels (see Section 6.5) MAY
    carry non-authoritative result metadata and MAY carry sender-
@@ -520,9 +517,12 @@ Table of Contents
        only constrain or complete the originating request.
 
    2.  *Continuation through the token endpoint.* The deferred code
-       grant type at the token endpoint is the sole interface for
-       continuation, regardless of which endpoint received the
-       originating request.
+       grant type at the token endpoint is the sole client-initiated
+       interface for advancing deferred processing, regardless of which
+       endpoint received the originating request.  Profile-defined
+       advisory delivery channels can deliver state transitions or
+       completion results under Section 6.5, but they do not host
+       continuation processing and do not accept continuation requests.
 
    3.  *Sender-constraining continuity.* Sender-constraining and proof-
        of-possession material from the originating request applies to
@@ -543,11 +543,11 @@ Table of Contents
        path.* Continuation polling at the token endpoint using the
        deferred code grant type is always available as an authoritative
        way to observe the outcome of a deferred request.  Profile-
-       defined advisory delivery channels MAY also serve as
-       authoritative completion paths when they meet the additional
+       defined advisory delivery channels MAY separately serve as
+       authoritative delivery paths when they meet the additional
        requirements in Section 6.5, including the requirement that any
        credentials they carry be sender-constrained.  The notification
-       mechanism defined in Section 14 is not an authoritative
+       mechanism defined in Section 15 is not an authoritative
        completion path; it carries state-change hints only, and the
        client obtains the result through continuation polling.
        Authorization servers and clients MUST be prepared to use polling
@@ -570,15 +570,17 @@ Table of Contents
    MUST operate outside the continuation grant type and MUST enforce
    narrowing-only updates relative to the originating request.
 
-   C. *No relaxation of guarantees.* A profile MAY define new grant_mode
-   values, new externally-observable states, new response parameters,
-   new parameter-update mechanisms, and new advisory delivery channels.
-   A profile MUST NOT relax the no-authorization-expansion, sender-
-   constraining-continuity, or originating-request-immutability
-   guarantees above.  A profile MUST NOT remove polling as an available
-   authoritative completion path; a profile MAY add advisory delivery as
-   an additional authoritative path subject to the requirements in
-   Section 6.5.
+   C. *No relaxation of guarantees.* A profile MAY define new
+   completion_mode values, new externally-observable states, new
+   response parameters, new parameter-update mechanisms, and new
+   advisory delivery channels.  Profiles MAY also define additional
+   request parameters (registered outside this specification) to signal
+   acceptance of profile-defined behavior.  A profile MUST NOT relax the
+   no-authorization-expansion, sender-constraining-continuity, or
+   originating-request-immutability guarantees above.  A profile MUST
+   NOT remove polling as an available authoritative completion path; a
+   profile MAY add advisory delivery as an additional authoritative path
+   subject to the requirements in Section 6.5.
 
 4.4.  Processing Model
 
@@ -598,9 +600,9 @@ Table of Contents
    *  the request is valid but cannot complete synchronously, so the
       authorization server creates deferred processing state and returns
       either a deferred processing response (for token endpoint
-      originating requests, see Section 9.1) or a deferred authorization
-      response (for authorization endpoint originating requests, see
-      Section 8).
+      originating requests, see Section 10.1) or a deferred
+      authorization response (for authorization endpoint originating
+      requests, see Section 9).
 
    The deferred processing state is an authorization server internal
    record.  It is referenced by the deferred code but is not exposed to
@@ -608,7 +610,7 @@ Table of Contents
    needed to complete processing.  The client MUST NOT resubmit the
    originating request parameters during continuation, except as defined
    for the first continuation request following authorization endpoint
-   deferral (see Section 8.3).
+   deferral (see Section 9.3).
 
    Continuation requests resume evaluation of the originating request.
    The authorization server uses the deferred code to locate deferred
@@ -703,9 +705,9 @@ Table of Contents
    conditions, or terminate processing at any point according to local
    policy.  For clarity, the diagram does not depict every transition
    defined by this specification: client-initiated cancellation (see
-   Section 13) terminates deferred processing state from the Pending or
+   Section 14) terminates deferred processing state from the Pending or
    Interaction Required conditions, and authorization-server-initiated
-   notifications (see Section 14) MAY accompany any state transition.
+   notifications (see Section 15) MAY accompany any state transition.
 
    Deferred processing state ends when the request completes
    successfully, fails permanently, expires, is revoked, is canceled by
@@ -734,7 +736,7 @@ Table of Contents
       access_denied when the unsuccessful outcome is the result of an
       authorization decision reached during deferred processing, or
       another token endpoint error response when more specific to the
-      reason for failure (see Section 12.5).
+      reason for failure (see Section 13.5).
 
    Expired:  The deferred processing state or deferred code is no longer
       valid due to expiration.  The authorization server returns
@@ -744,7 +746,7 @@ Table of Contents
       unknown, revoked, not bound to the requesting client, or otherwise
       invalid.  The authorization server returns invalid_grant.
       Deferred processing state terminated by client-initiated
-      cancellation as defined in Section 13 is observed externally as
+      cancellation as defined in Section 14 is observed externally as
       Denied when the authorization server can still identify the
       canceled state, or Invalid when the deferred code no longer
       identifies retained state.
@@ -891,8 +893,8 @@ Table of Contents
    If true, the authorization server MAY return deferred responses to
    this client when other eligibility criteria are met.  The capability
    covers both deferred processing responses at the token endpoint (see
-   Section 9.1) and deferred authorization responses at the
-   authorization endpoint (see Section 8); a client either understands
+   Section 10.1) and deferred authorization responses at the
+   authorization endpoint (see Section 9); a client either understands
    the deferred code continuation model or does not, and the same
    metadata signal applies to both originating endpoints.
 
@@ -905,9 +907,10 @@ Table of Contents
    capability signal.  In that case, the authorization server MUST NOT
    infer broad client support for deferred processing from the missing
    metadata alone.  The authorization server MAY still defer a specific
-   originating request when the request itself contains an applicable
-   grant_mode value indicating per-request acceptance, unless local
-   policy or profile requirements demand static client registration.
+   originating request when the request itself contains
+   completion_mode=deferred indicating per-request acceptance, unless
+   local policy or profile requirements demand static client
+   registration.
 
    A client SHOULD register deferred_code_processing_supported=false
    when it cannot accept a non-synchronous outcome, for example when the
@@ -916,57 +919,58 @@ Table of Contents
    policy requires sync-or-fail token acquisition.  A value of false is
    an explicit opt-out: the authorization server MUST NOT defer
    originating requests from that client even if a request contains
-   grant_mode, unless the client metadata is first updated by an
-   authorized registration mechanism.
+   completion_mode=deferred, unless the client metadata is first updated
+   by an authorized registration mechanism.
 
    Static client capability and per-request acceptance answer different
    questions.  Client metadata declares the modes a client
-   implementation can handle in principle; the grant_mode parameter
+   implementation can handle in principle; the completion_mode parameter
    declares the modes the client accepts for a specific request.  The
    two operate together: an authorization server SHOULD defer only when
    both the client's static metadata permits it and the request itself
    is eligible under the authorization server's policy (the default
-   behavior when grant_mode is absent is defined in Section 7).
+   behavior when completion_mode is absent is defined in Section 7).
 
    The two-channel arrangement matches the precedent set by existing
    OAuth and OpenID Connect parameters such as response_type and its
    corresponding client metadata field response_types, where durable
    capability is registered as metadata and per-request acceptance is
-   signaled by the parameter.  See Section 7.5 for the full mapping.  A
+   signaled by the parameter.  See Section 8 for the full mapping.  A
    client with no registered capability signal that wishes to opt into
-   deferred processing for a specific request uses grant_mode=deferred
-   for that request; the authorization server is then permitted to defer
-   the request under the policy described in Section 7.
+   deferred processing for a specific request uses
+   completion_mode=deferred for that request; the authorization server
+   is then permitted to defer the request under the policy described in
+   Section 7.
 
    The following table summarizes the deferral eligibility effect of
    client metadata and request parameters.  Other eligibility checks,
    client policy, authorization server policy, and profile-specific
    requirements still apply.
 
-   +========================================+===================+=============+=============+
-   |Client metadata                         |Request parameter  |Token        |Authorization|
-   |                                        |                   |endpoint     |endpoint     |
-   |                                        |                   |deferral     |deferral     |
-   +========================================+===================+=============+=============+
-   |deferred_code_processing_supported=false|any value or       |MUST NOT     |MUST NOT     |
-   |                                        |omitted            |defer        |defer        |
-   +----------------------------------------+-------------------+-------------+-------------+
-   |deferred_code_processing_supported=true |grant_mode=deferred|MAY defer    |MAY defer    |
-   +----------------------------------------+-------------------+-------------+-------------+
-   |deferred_code_processing_supported=true |omitted            |MAY defer    |MUST NOT     |
-   |                                        |                   |             |defer        |
-   +----------------------------------------+-------------------+-------------+-------------+
-   |omitted                                 |grant_mode=deferred|MAY defer    |MAY defer    |
-   +----------------------------------------+-------------------+-------------+-------------+
-   |omitted                                 |omitted            |MUST NOT     |MUST NOT     |
-   |                                        |                   |infer        |defer        |
-   |                                        |                   |support;     |             |
-   |                                        |                   |complete     |             |
-   |                                        |                   |synchronously|             |
-   |                                        |                   |or return    |             |
-   |                                        |                   |terminal     |             |
-   |                                        |                   |error        |             |
-   +----------------------------------------+-------------------+-------------+-------------+
+   +========================================+========================+=============+=============+
+   |Client metadata                         |Request parameter       |Token        |Authorization|
+   |                                        |                        |endpoint     |endpoint     |
+   |                                        |                        |deferral     |deferral     |
+   +========================================+========================+=============+=============+
+   |deferred_code_processing_supported=false|any value or omitted    |MUST NOT     |MUST NOT     |
+   |                                        |                        |defer        |defer        |
+   +----------------------------------------+------------------------+-------------+-------------+
+   |deferred_code_processing_supported=true |completion_mode=deferred|MAY defer    |MAY defer    |
+   +----------------------------------------+------------------------+-------------+-------------+
+   |deferred_code_processing_supported=true |omitted                 |MAY defer    |MUST NOT     |
+   |                                        |                        |             |defer        |
+   +----------------------------------------+------------------------+-------------+-------------+
+   |omitted                                 |completion_mode=deferred|MAY defer    |MAY defer    |
+   +----------------------------------------+------------------------+-------------+-------------+
+   |omitted                                 |omitted                 |MUST NOT     |MUST NOT     |
+   |                                        |                        |infer        |defer        |
+   |                                        |                        |support;     |             |
+   |                                        |                        |complete     |             |
+   |                                        |                        |synchronously|             |
+   |                                        |                        |or return    |             |
+   |                                        |                        |terminal     |             |
+   |                                        |                        |error        |             |
+   +----------------------------------------+------------------------+-------------+-------------+
 
                                   Table 1
 
@@ -1017,8 +1021,8 @@ Table of Contents
       consent, or review,
 
    *  additional advisory delivery mechanisms that reduce polling
-      latency or cost while preserving token endpoint polling as the
-      authoritative completion channel,
+      latency or cost while preserving token endpoint polling as an
+      always-available authoritative completion path,
 
    *  additional externally-observable states extending the abstract
       state lifecycle defined in this specification,
@@ -1033,15 +1037,16 @@ Table of Contents
    deferred_code value.
 
    Higher-layer profiles that define new response parameters, request
-   parameters, error codes, or grant_mode values SHOULD register them in
-   the appropriate IANA registry (OAuth Parameters Registry, OAuth
-   Extensions Error Registry, or OAuth Grant Mode Values Registry as
-   applicable).  Profile-defined parameter and value names SHOULD avoid
-   collisions with existing OAuth parameter and value names; profiles
-   MAY use a profile-specific prefix or namespace convention to reduce
-   collision risk.  When multiple profiles define response parameters
-   that may appear in the same response, profiles SHOULD specify how
-   their parameters compose with parameters defined by other profiles.
+   parameters, error codes, or completion_mode values SHOULD register
+   them in the appropriate IANA registry (OAuth Parameters Registry,
+   OAuth Extensions Error Registry, or OAuth Completion Mode Values
+   Registry as applicable).  Profile-defined parameter and value names
+   SHOULD avoid collisions with existing OAuth parameter and value
+   names; profiles MAY use a profile-specific prefix or namespace
+   convention to reduce collision risk.  When multiple profiles define
+   response parameters that may appear in the same response, profiles
+   SHOULD specify how their parameters compose with parameters defined
+   by other profiles.
 
 6.5.  Profile-Defined Advisory Delivery Channels
 
@@ -1056,7 +1061,7 @@ Table of Contents
 
    This section uses "advisory" as a category name carried forward from
    earlier drafts.  Under the rules below, a profile-defined channel MAY
-   serve as an authoritative completion path for sender-constrained
+   serve as an authoritative delivery path for sender-constrained
    credentials in addition to the polling path defined by this
    specification; it remains "advisory" in the sense that polling is
    always also available and the client may rely on either path.
@@ -1095,7 +1100,15 @@ Table of Contents
    equivalent to those required for a continuation request at the token
    endpoint, and MUST NOT host continuation processing itself.  The
    continuation interface remains the token endpoint as defined in this
-   specification.
+   specification; advisory endpoints deliver events or results only.
+
+   Credential delivery through an advisory channel is an exceptional
+   profile-defined optimization, not the default completion path of this
+   substrate.  Profiles SHOULD prefer polling or preview-only advisory
+   delivery unless direct credential delivery materially reduces
+   latency, cost, or reliability risk for the use case and the profile
+   can satisfy the confirmation, cancellation, and polling-equivalence
+   requirements below.
 
 6.5.2.  Payload Content Rules
 
@@ -1160,7 +1173,7 @@ Table of Contents
 
    *  invalidate the credential, where the credential is independently
       revocable, if the deferred processing state is cancelled per
-      Section 13 before the client has confirmed receipt or, if a
+      Section 14 before the client has confirmed receipt or, if a
       confirmation mechanism is not defined by the profile, treat the
       delivered credential as committed at the time of successful
       delivery and accept that subsequent cancellation cannot
@@ -1180,9 +1193,15 @@ Table of Contents
    still be invalidated by cancellation and document the resulting
    implications for client behavior.
 
+   Profiles that treat delivered credentials as committed without an
+   explicit client confirmation MUST state that limitation clearly and
+   SHOULD justify why the transport is still appropriate for credential
+   delivery rather than only for state-change events or non-
+   authoritative result metadata.
+
 6.5.4.  Built-in Notification Mechanism
 
-   The notification mechanism defined in Section 14 is the substrate's
+   The notification mechanism defined in Section 15 is the substrate's
    only built-in advisory channel and is specifically restricted to
    state-change hints.  The notification body carries only the affected
    deferred_code and MUST NOT carry credentials, result metadata, or
@@ -1199,114 +1218,138 @@ Table of Contents
    specification's repository.  Both proposals exercise the full scope
    this section permits, including credential delivery when the issued
    access token is sender-constrained, with preview-only delivery as the
-   fallback otherwise.  They are illustrative, not normative.
+   fallback otherwise.  They are illustrative, not normative, and
+   demonstrate that richer delivery profiles can be specified without
+   amending this substrate; they do not imply that direct credential
+   delivery is appropriate for every advisory transport.
 
-7.  Grant Mode Parameter
+7.  Completion Mode Parameter
 
-   This specification defines the grant_mode request parameter.  A value
-   in grant_mode signals that the client accepts a grant produced in
-   that mode for the request that carries it.  The parameter applies to
-   both authorization endpoint requests as defined in [RFC6749] and
-   token endpoint requests as defined in [RFC6749].
+   This specification defines the completion_mode request parameter.  A
+   value in completion_mode signals that the client accepts the named
+   completion mode for the request that carries it.  "Completion mode"
+   means _how the result of the request reaches the client_:
+   synchronously in the request's own response, asynchronously through
+   deferred-code continuation, through a profile-defined push channel,
+   through a profile-defined streaming channel, or otherwise.  The
+   parameter applies to both authorization endpoint requests and token
+   endpoint requests as defined in [RFC6749].
 
-   The grant_mode parameter is informed by OAuth's existing multi-valued
-   request parameters; reviewers familiar with scope, response_type,
-   prompt, or acr_values will recognize the general structure even
-   though each parameter has its own selection and composition rules.
-   The detailed comparison appears in Section 7.5.
+   The completion_mode parameter is informed by OAuth's existing multi-
+   valued request parameters; reviewers familiar with scope,
+   response_type, prompt, or acr_values will recognize the general
+   structure even though each parameter has its own selection and
+   composition rules.  The detailed comparison appears in Section 8.
+
+   Profile authors that need to signal acceptance of profile-defined
+   grant shape or request-handling modes (for example, partial-
+   completion artifact shapes or revisable-request handling) SHOULD do
+   so through a separate parameter mechanism defined outside this
+   specification.  The companion specification [INTERIM-GRANT-MODE]
+   illustrates one such approach: a profile that registers a value also
+   introduces the parameter and the registry for other profiles to reuse
+   (the RFC 9396 model).  This substrate does not define a generic
+   shape/handling parameter; it defines only completion_mode, which
+   carries values about _how_ the request is completed.
 
 7.1.  Syntax
 
-   The grant_mode parameter is OPTIONAL.  Its value is a space-
-   delimited, case-sensitive list of one or more grant mode values
-   registered in the "OAuth Grant Mode Values" registry established by
-   this specification.
+   The completion_mode parameter is OPTIONAL.  Its value is a space-
+   delimited, case-sensitive list of one or more completion mode values
+   registered in the "OAuth Completion Mode Values" registry established
+   by this specification.
 
    If the parameter is omitted, the authorization server processes the
-   request as if no grant mode was expressed and SHOULD use its default
-   behavior, which is to produce a synchronous grant when possible.
+   request as if no completion mode was expressed and SHOULD use its
+   default behavior, which is to complete the request synchronously when
+   possible.
 
 7.2.  Semantics
 
-   A value in grant_mode is a request-level signal that the client
-   accepts a grant produced in the named mode for the request that
-   carries the parameter.  The authorization server MAY produce a grant
-   in any listed mode, subject to its own policy and the request's
-   eligibility.  Presence of a value does not guarantee that the named
-   mode will be applied, and absence of a value does not by itself
-   prevent the authorization server from selecting a mode permitted by
-   the client's static capability in client metadata (see Section 6.2).
+   A value in completion_mode is a request-level signal that the client
+   accepts the named completion mode for the request that carries the
+   parameter.  The authorization server MAY complete the request in any
+   listed mode, subject to its own policy and the request's eligibility.
+   Presence of a value does not guarantee that the named mode will be
+   applied, and absence of a value does not by itself prevent the
+   authorization server from selecting a mode permitted by the client's
+   static capability in client metadata (see Section 6.2).
 
    When multiple values are present, the values are interpreted
-   disjunctively: the client accepts a grant produced in any one of the
-   listed modes.  The authorization server MAY honor any of the listed
-   values, in any combination compatible with the originating request
-   and authorization server policy.
+   disjunctively: the client accepts completion in any one of the listed
+   modes.  The authorization server MAY honor any of the listed values,
+   in any combination compatible with the originating request and
+   authorization server policy.
 
-   The grant_mode parameter does not declare durable client capability.
-   Durable capability is declared in client metadata (see Section 6.2)
-   and answers the question "what modes can this client implementation
-   handle in principle?"  The grant_mode parameter answers a separate,
-   request-level question: "what modes does the client accept for this
-   specific request?"  A client that can handle deferral in general may
-   still want a particular request completed synchronously (for example,
-   a request on a strict latency budget); a client that wants to opt
-   into a profile-defined mode for a specific request signals that with
-   grant_mode because static metadata cannot represent a per-request
-   choice.
+   The completion_mode parameter does not declare durable client
+   capability.  Durable capability is declared in client metadata (see
+   Section 6.2) and answers the question "what completion modes can this
+   client implementation handle in principle?"  The completion_mode
+   parameter answers a separate, request-level question: "what
+   completion modes does the client accept for this specific request?"
+   A client that can handle deferred completion in general may still
+   want a particular request completed synchronously (for example, a
+   request on a strict latency budget); a client that wants to opt into
+   a profile-defined completion mode for a specific request signals that
+   with completion_mode because static metadata cannot represent a per-
+   request choice.
 
-   The authorization server MUST NOT use the grant_mode parameter to
-   expand authorization beyond what other request parameters express.
+   The authorization server MUST NOT use the completion_mode parameter
+   to expand authorization beyond what other request parameters express.
 
 7.3.  Defined Values
 
-   deferred:  Client accepts a deferred grant.  The authorization server
-      MAY produce the grant asynchronously and return a deferred_code
-      for continuation, as defined in Section 8 and Section 9.1.
+   deferred:  Client accepts deferred completion.  The authorization
+      server MAY complete the request asynchronously and return a
+      deferred_code for continuation, as defined in Section 9 and
+      Section 10.1.
 
    Additional values MAY be registered by other specifications via the
-   registry policy defined in this specification.
+   registry policy defined in this specification.  Candidate profile-
+   defined values include push delivery of completion to a client-
+   registered endpoint and streaming delivery over a long-lived
+   connection; both are illustrated in the proposals/ directory of this
+   specification's repository.
 
    This specification defines a single value, deferred, so multi-value
    semantics are only observable in combination with profile-defined
-   values registered through the "OAuth Grant Mode Values" registry.  If
-   a profile registers an additional value (denoted here as X), a
-   request with grant_mode=deferred X indicates that the client accepts
-   either a deferred grant or a grant produced in mode X (or both, if
-   the values are mutually compatible).  The authorization server MAY
-   produce any outcome the listed values jointly authorize, and the
-   client MUST be prepared to receive any such outcome.
+   values registered through the "OAuth Completion Mode Values"
+   registry.  If a profile registers an additional value (denoted here
+   as X), a request with completion_mode=deferred X indicates that the
+   client accepts either deferred completion or completion in mode X (or
+   both, if the values are mutually compatible).  The authorization
+   server MAY produce any outcome the listed values jointly authorize,
+   and the client MUST be prepared to receive any such outcome.
 
-   Profiles defining new grant_mode values MUST specify whether and how
-   their values interact with other values that may appear in the same
-   parameter, including the deferred value defined by this
+   Profiles defining new completion_mode values MUST specify whether and
+   how their values interact with other values that may appear in the
+   same parameter, including the deferred value defined by this
    specification.
 
 7.4.  Authorization Server Processing
 
-   When grant_mode=deferred is present and the authorization server
+   When completion_mode=deferred is present and the authorization server
    elects to defer, the authorization server returns the deferred
    response defined for the originating endpoint: a deferred
-   authorization response at the authorization endpoint (see Section 8),
+   authorization response at the authorization endpoint (see Section 9),
    or a deferred processing response at the token endpoint (see
-   Section 9.1).
+   Section 10.1).
 
-   When grant_mode is absent and the authorization server is otherwise
-   willing to defer, the authorization server MAY still defer if its
-   policy permits and the client's registered metadata declares
+   When completion_mode is absent and the authorization server is
+   otherwise willing to defer, the authorization server MAY still defer
+   if its policy permits and the client's registered metadata declares
    deferred_code_processing_supported=true (see Section 6.2).  If
    neither static client metadata nor the request itself signals
    deferred-processing support, the authorization server MUST complete
    the originating request synchronously or return an endpoint-
    appropriate terminal error response.
 
-7.5.  Relationship to Existing OAuth Multi-Valued Request Parameters
+8.  Relationship to Existing OAuth Request Parameters
 
-   The grant_mode parameter is modeled on OAuth's pattern of space-
-   delimited request parameters whose values are drawn from a registry
-   or specification-defined value set.  The comparison is structural
-   rather than exact: the selection semantics differ across existing
-   parameters.
+   The completion_mode parameter is modeled on OAuth's pattern of space-
+   delimited, registry-backed request parameters.  The comparison is
+   structural rather than exact: the selection semantics differ across
+   existing parameters.
 
    *  *scope* (defined by [RFC6749]): the client requests a set of
       access scopes; the authorization server can grant a subset.
@@ -1324,66 +1367,69 @@ Table of Contents
       authentication context class references; the authorization server
       authenticates the end-user at an appropriate supported level.
 
-   *  *grant_mode* (defined by this specification): the client lists
-      grant modes it accepts; the authorization server MAY produce a
-      grant in any listed mode.
+   *  *completion_mode* (defined by this specification): the client
+      lists completion modes it accepts; the authorization server MAY
+      complete the request in any listed mode.
 
    In each case the request parameter is not a declaration of durable
    client capability.  Where durable capability matters, it is
    registered in a corresponding client metadata field (for example,
-   response_types) rather than inferred from one request. grant_mode
-   follows the same convention: durable capability is declared in client
-   metadata (see Section 6.2); the per-request parameter signals
-   acceptance for the request that carries it.
+   response_types) rather than inferred from one request.  The
+   completion_mode parameter follows the same convention: durable
+   capability is declared in client metadata (see Section 6.2), and the
+   per-request parameter signals acceptance for the request that carries
+   it.
 
-   grant_mode is therefore not a wholly new kind of OAuth signal.  It is
-   one new parameter in an existing family of per-request, registry-
-   backed value lists, with one new IANA registry governing its values.
-   The conceptual surface added by this specification is the registry,
-   the deferred value, and the grant-mode-specific disjunctive selection
-   rule defined in Section 7.
+   completion_mode is not a wholly new kind of OAuth signal.  It is one
+   new parameter in an existing family of per-request, registry-backed
+   value lists, with one new IANA registry governing its values.
 
-7.6.  Relationship to Other Grant- and Response-Family Parameters
+8.1.  Relationship to Grant- and Response-Family Parameters
 
-   The grant_mode parameter joins the existing grant_* family alongside
-   grant_type (defined by [RFC6749]), and is orthogonal to both
-   grant_type and the response_* family parameters:
+   The completion_mode parameter joins the existing OAuth parameter
+   families:
 
-   *  grant_type expresses the kind of grant flow being executed at the
-      token endpoint (e.g., authorization_code, client_credentials,
+   *  grant_type (defined by [RFC6749]): the kind of grant flow executed
+      at the token endpoint (authorization_code, client_credentials,
       refresh_token, urn:ietf:params:oauth:grant-type:token-exchange).
 
-   *  grant_mode expresses the modes of grant the client accepts
-      (deferred is defined in this specification; additional values may
-      be registered by other specifications).
+   *  completion_mode (defined by this specification): completion modes
+      the client accepts for the request (deferred is defined here;
+      additional values may be registered).
 
-   *  response_type expresses the kind of artifact the client expects
-      from a successful authorization at the authorization endpoint
-      (code, token, id_token).
+   *  response_type (defined by [RFC6749]): kind of artifact the client
+      expects from a successful authorization at the authorization
+      endpoint.
 
-   *  response_mode expresses how the authorization endpoint response is
-      delivered (query, fragment, form_post).
+   *  response_mode (defined by [RFC6749]): how the authorization
+      endpoint response is delivered (query, fragment, form_post).
 
-   The _type/_mode distinction in the grant_* family mirrors the same
-   distinction in the response_* family: _type names the kind, _mode
-   names the manner.
+   The _type/_mode distinction is consistent across families: _type
+   names the kind, _mode names the manner.  A profile-defined grant_mode
+   parameter, defined in the companion specification
+   [INTERIM-GRANT-MODE], carries profile-defined modes that affect the
+   _shape_ or _handling_ of the produced grant; such a parameter is
+   orthogonal to completion_mode and carries profile-registered values.
+   Following the RFC 9396 model, the parameter and its registry are
+   introduced in the first profile that needs them rather than in this
+   substrate specification.
 
-8.  Authorization Endpoint Extensions
+9.  Authorization Endpoint Extensions
 
    The following sections extend the OAuth authorization endpoint
    defined in [RFC6749] to allow the authorization server to defer
    completion of an authorization request.
 
-8.1.  Deferred Authorization Response
+9.1.  Deferred Authorization Response
 
    When the authorization server determines that an authorization
    request cannot complete synchronously, it MAY return a deferred
    authorization response in place of an authorization response or
    authorization error response if the authorization request includes
-   grant_mode=deferred (see Section 7).  The authorization server MUST
-   NOT return a deferred authorization response for an authorization
-   request that did not explicitly signal acceptance of authorization
-   endpoint deferral.
+   completion_mode=deferred (see Section 7).  The authorization server
+   MUST NOT return a deferred authorization response for an
+   authorization request that did not explicitly signal acceptance of
+   authorization endpoint deferral.
 
    The authorization server MUST validate the authorization request to
    the extent necessary to determine eligibility for deferred processing
@@ -1423,7 +1469,7 @@ Table of Contents
 
    interaction_uri:  OPTIONAL.  A URI identifying where external
       interaction associated with the deferred request can occur, as
-      defined in Section 9.6.  The interaction_uri MAY be omitted when
+      defined in Section 10.6.  The interaction_uri MAY be omitted when
       external interaction is not yet known to be required; subsequent
       continuation responses MAY introduce an interaction_uri if the
       state transitions to Interaction Required.
@@ -1442,7 +1488,7 @@ Table of Contents
    prohibition to any such parameter that would indicate synchronous
    completion.
 
-8.1.1.  Example
+9.1.1.  Example
 
    A deferred authorization response delivered as a redirect:
 
@@ -1453,7 +1499,7 @@ Table of Contents
      expires_in=600&
      interaction_uri=https%3A%2F%2Fas.example.com%2Finteract%2F8N5B2K1
 
-8.2.  Client Processing of Deferred Authorization Responses
+9.2.  Client Processing of Deferred Authorization Responses
 
    A client that receives a deferred authorization response MUST verify
    the state parameter exactly as it would for any authorization
@@ -1462,7 +1508,7 @@ Table of Contents
    The client MUST NOT treat the deferred authorization response as a
    successful authorization.  The client resumes processing by
    submitting a continuation request to the token endpoint using the
-   deferred code grant type defined in Section 11.2.  The client does
+   deferred code grant type defined in Section 12.2.  The client does
    not redeem an authorization code; the continuation request completes
    the originating authorization request and, when processing completes
    successfully, the token endpoint returns an access token response
@@ -1471,7 +1517,7 @@ Table of Contents
    A client MAY present the interaction_uri to the user.  This
    specification does not require any particular interaction channel.
 
-8.3.  PKCE for Deferred Authorization Responses
+9.3.  PKCE for Deferred Authorization Responses
 
    When the originating authorization request included a code_challenge
    parameter as defined by [RFC7636], the authorization server MUST
@@ -1487,7 +1533,7 @@ Table of Contents
    using the stored code_challenge_method before completing the deferred
    processing.
 
-   This is an exception to the general prohibition in Section 11.2 on
+   This is an exception to the general prohibition in Section 12.2 on
    presenting code_verifier on continuation requests.  The exception
    applies only to the first continuation request following a deferred
    authorization response, and only when PKCE was used on the
@@ -1514,11 +1560,11 @@ Table of Contents
    endpoint, the authorization server MUST bind the deferred processing
    state to that key or certificate thumbprint.  Each continuation
    request MUST use the corresponding proof or certificate binding as
-   defined in Section 11.2.  The specific mechanism by which the
+   defined in Section 12.2.  The specific mechanism by which the
    authorization request conveys a sender-constraining key is out of
    scope for this specification.
 
-8.4.  Authorization Endpoint Errors
+9.4.  Authorization Endpoint Errors
 
    When the authorization server cannot create deferred processing state
    for an authorization request, it returns the appropriate
@@ -1533,10 +1579,10 @@ Table of Contents
    particular, the authorization server MUST NOT issue a deferred_code
    to an unvalidated redirect URI.
 
-8.5.  Example: Front-Channel Step-Up
+9.5.  Example: Front-Channel Step-Up
 
    A client initiates an authorization code request, signalling
-   acceptance of a deferred decision via grant_mode=deferred:
+   acceptance of a deferred decision via completion_mode=deferred:
 
    GET /authorize?
      response_type=code&
@@ -1546,7 +1592,7 @@ Table of Contents
      state=xyz&
      code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&
      code_challenge_method=S256&
-     grant_mode=deferred HTTP/1.1
+     completion_mode=deferred HTTP/1.1
    Host: as.example.com
 
    The authorization server determines that the requested operation
@@ -1586,12 +1632,12 @@ Table of Contents
    step-up and approval complete, the continuation response returns an
    access token response directly.
 
-9.  Token Endpoint Extensions
+10.  Token Endpoint Extensions
 
    The following sections extend the OAuth token endpoint defined in
    [RFC6749].
 
-9.1.  Deferred Processing Responses
+10.1.  Deferred Processing Responses
 
    When the authorization server defers processing of a token request,
    it returns a token endpoint error response indicating deferred
@@ -1610,7 +1656,7 @@ Table of Contents
    deferred processing state is bound to additional context that the
    requesting client instance MUST demonstrate on each continuation
    request.  The acceptable continuation bindings are defined in the
-   §Client Authentication subsection of Section 17.  The binding MUST be
+   §Client Authentication subsection of Section 18.  The binding MUST be
    sufficient to prevent another client instance that obtains the
    deferred code from completing the continuation.
 
@@ -1619,13 +1665,13 @@ Table of Contents
    PKCE verification is performed once during evaluation of the
    originating token request, the code_verifier is consumed at that
    point, and continuation requests do not re-present it (see
-   Section 11.2).  PKCE therefore proves the requestor of the
+   Section 12.2).  PKCE therefore proves the requestor of the
    originating token request possessed the verifier but does not
    authenticate the continuation requestor.  PKCE MAY be combined with a
    sender-constraining or session-binding mechanism listed above to
    satisfy this requirement.  The continuation binding requirements for
    authorization endpoint originating requests are defined separately in
-   Section 8.3, where the code_verifier is presented for the first time
+   Section 9.3, where the code_verifier is presented for the first time
    on the first continuation request and can serve as the primary
    continuation binding.
 
@@ -1637,10 +1683,11 @@ Table of Contents
 
    This specification reuses the authorization_pending, slow_down, and
    expired_token token endpoint error codes defined by [RFC8628] with
-   the generalized semantics defined in Section 9.2.  This specification
-   uses the interaction_required error code registered by OpenID Connect
-   [OIDC-CORE] and updates its registration to add token endpoint
-   response usage for deferred request processing using deferred_code.
+   the generalized semantics defined in Section 10.2.  This
+   specification uses the interaction_required error code registered by
+   OpenID Connect [OIDC-CORE] and updates its registration to add token
+   endpoint response usage for deferred request processing using
+   deferred_code.
 
    The response MUST include deferred_code and expires_in parameters.
    The response SHOULD include an interval parameter unless the
@@ -1663,7 +1710,7 @@ Table of Contents
    [RFC6749].  Intermediate caches MUST NOT retain deferred_code,
    notification_token, interaction_uri, or any associated parameters.
 
-9.2.  Deferred Error Semantics
+10.2.  Deferred Error Semantics
 
    The following token endpoint error values are used by this
    specification:
@@ -1696,7 +1743,7 @@ Table of Contents
    appears at the token endpoint to indicate deferred processing state
    waiting for external interaction.
 
-9.3.  Authorization Pending
+10.3.  Authorization Pending
 
    The authorization_pending error indicates deferred processing remains
    ongoing.
@@ -1714,7 +1761,7 @@ Table of Contents
    probing.  Clients MUST NOT depend on the format or content of
    error_description for protocol decisions.
 
-9.3.1.  Example
+10.3.1.  Example
 
    {
      "error": "authorization_pending",
@@ -1723,14 +1770,14 @@ Table of Contents
      "expires_in": 900
    }
 
-9.4.  Interaction Required
+10.4.  Interaction Required
 
    The interaction_required error indicates external interaction is
    needed before processing can continue.
 
    The response MUST include an interaction_uri parameter.
 
-9.4.1.  Example
+10.4.1.  Example
 
    {
      "error": "interaction_required",
@@ -1741,7 +1788,7 @@ Table of Contents
      "expires_in": 900
    }
 
-9.5.  Deferred Code Parameter
+10.5.  Deferred Code Parameter
 
    The deferred_code parameter is an opaque reference that enables the
    client to continue processing of a deferred originating request, as
@@ -1755,9 +1802,9 @@ Table of Contents
 
    When a deferred_code is returned in a success response together with
    an issued artifact, the response MUST also include
-   deferred_code_expires_in as defined in Section 9.9.
+   deferred_code_expires_in as defined in Section 10.9.
 
-9.6.  Interaction URI Parameter
+10.6.  Interaction URI Parameter
 
    The interaction_uri parameter identifies a location where required
    external interaction can occur.
@@ -1800,7 +1847,7 @@ Table of Contents
    interaction_uri or extract state from it.  Clients MUST treat the
    interaction_uri as an opaque URI.
 
-9.7.  Interval Parameter
+10.7.  Interval Parameter
 
    The interval parameter indicates the minimum number of seconds the
    client SHOULD wait before submitting another continuation request.
@@ -1815,7 +1862,7 @@ Table of Contents
    as defined by [RFC8628] or another token endpoint error response
    appropriate to the condition.
 
-9.8.  Expires In Parameter
+10.8.  Expires In Parameter
 
    In a deferred processing response and in continuation responses
    returning authorization_pending, interaction_required, or slow_down,
@@ -1843,23 +1890,23 @@ Table of Contents
    token lifetime, and is preserved here for vocabulary continuity with
    that specification.  Where a response includes both an issued
    artifact and a deferred_code (a partial completion response, as
-   defined in Section 10), the deferred-code lifetime is carried in the
-   separate deferred_code_expires_in parameter defined in Section 9.9 to
-   avoid ambiguity.
+   defined in Section 11), the deferred-code lifetime is carried in the
+   separate deferred_code_expires_in parameter defined in Section 10.9
+   to avoid ambiguity.
 
-9.9.  Deferred Code Expires In Parameter
+10.9.  Deferred Code Expires In Parameter
 
    The deferred_code_expires_in parameter indicates the remaining
    lifetime of the deferred code in seconds when a response includes
    both an issued artifact and a deferred_code.
 
-   In a partial completion response as defined in Section 10,
+   In a partial completion response as defined in Section 11,
    deferred_code_expires_in is REQUIRED.  The expires_in parameter, if
    present, retains the meaning defined by the originating endpoint or
    grant type and MUST NOT be used to describe the lifetime of the
    deferred code in a partial completion response.
 
-10.  Partial Completion
+11.  Partial Completion
 
    In addition to full synchronous completion (a standard token response
    or authorization response with no deferred_code) and full deferral (a
@@ -1880,8 +1927,10 @@ Table of Contents
       continuation completes unsuccessfully);
 
    *  the client has explicitly signaled support for that profile,
-      typically via a profile-defined grant_mode value on the request or
-      via profile-specific client metadata;
+      typically via a profile-defined request parameter value or
+      profile-specific client metadata (for example, a value registered
+      in a registry introduced by an upstream profile that bundles a
+      shared parameter mechanism with its own values);
 
    *  the authorization server can immediately issue an artifact
       reflecting currently-available authorization and expects the
@@ -1900,7 +1949,7 @@ Table of Contents
    the deferred_code enables the client to continue processing for the
    portion that has not yet been issued.
 
-10.1.  Wire Shape
+11.1.  Wire Shape
 
    A partial completion response uses the success response form defined
    by the originating endpoint:
@@ -1917,7 +1966,7 @@ Table of Contents
       response type) and any other authorization response parameters,
       plus deferred_code and deferred_code_expires_in parameters
       conveyed in the same redirect channel as the deferred
-      authorization response defined in Section 8.
+      authorization response defined in Section 9.
 
    The presence of deferred_code in a success response signals that
    continuation is available; absence of deferred_code signals full
@@ -1940,12 +1989,12 @@ Table of Contents
    server prevents the artifact and deferred-code continuation from
    producing broader authorization than the originating request allowed.
 
-10.2.  Continuation
+11.2.  Continuation
 
    The client uses the issued artifact immediately according to the
    originating grant type's semantics.  The client also polls the
    deferred_code at the token endpoint using the deferred code grant
-   type defined in Section 11.2.
+   type defined in Section 12.2.
 
    When deferred processing completes successfully, the continuation
    response returns a 200 OK access token response carrying the upgraded
@@ -1961,7 +2010,7 @@ Table of Contents
    security considerations, and notification semantics defined elsewhere
    in this specification apply unchanged to partial completion.
 
-10.3.  Client Handling of Unrecognized Partial Completion
+11.3.  Client Handling of Unrecognized Partial Completion
 
    Clients that understand this specification but do not understand the
    applicable profile's partial-completion semantics MUST reject the
@@ -1974,7 +2023,7 @@ Table of Contents
    intended to prevent partial completions from reaching such clients in
    the first place.
 
-11.  Deferred Code Grant Type
+12.  Deferred Code Grant Type
 
    The deferred code grant type uses the OAuth extension grant mechanism
    defined by [RFC6749] to continue processing of a previously submitted
@@ -2005,13 +2054,13 @@ Table of Contents
    The authorization server MUST bind the deferred code to the
    originating request and its associated security context.
 
-11.1.  Grant Type
+12.1.  Grant Type
 
    The deferred code grant type value is:
 
    urn:ietf:params:oauth:grant-type:deferred_code
 
-11.2.  Continuation Request
+12.2.  Continuation Request
 
    The client MAY submit a continuation request using the deferred code
    grant type to resume processing of a deferred request.
@@ -2035,7 +2084,7 @@ Table of Contents
    code_verifier:  REQUIRED on the first continuation request following
       a deferred authorization response when the originating
       authorization request included a code_challenge parameter, as
-      defined in Section 8.3.  MUST NOT be included on any other
+      defined in Section 9.3.  MUST NOT be included on any other
       continuation request.
 
    The request MUST NOT include parameters that modify or replace
@@ -2100,7 +2149,7 @@ Table of Contents
    continuation request to replace sender-constraining key material from
    the originating request.
 
-11.2.1.  Example
+12.2.1.  Example
 
    POST /token HTTP/1.1
    Host: as.example.com
@@ -2115,9 +2164,9 @@ Table of Contents
    unexpired, and bound to the client and security context of the
    originating request.
 
-12.  Continuation Responses
+13.  Continuation Responses
 
-12.1.  Still Pending
+13.1.  Still Pending
 
    If processing remains incomplete, the authorization server returns a
    token endpoint error response with authorization_pending.
@@ -2140,7 +2189,7 @@ Table of Contents
      "expires_in": 895
    }
 
-12.2.  Interaction Required
+13.2.  Interaction Required
 
    If external interaction is required before processing can continue,
    the authorization server returns a token endpoint error response with
@@ -2166,7 +2215,7 @@ Table of Contents
      "expires_in": 895
    }
 
-12.3.  Polling Too Frequent
+13.3.  Polling Too Frequent
 
    If the client submits continuation requests more frequently than
    permitted, the authorization server MAY return a token endpoint error
@@ -2198,7 +2247,7 @@ Table of Contents
      "expires_in": 890
    }
 
-12.4.  Successful Completion
+13.4.  Successful Completion
 
    When processing completes successfully, the authorization server
    returns an access token response appropriate to the originating
@@ -2213,7 +2262,7 @@ Table of Contents
    This specification does not define or constrain higher-layer identity
    response semantics.
 
-12.4.1.  Example
+13.4.1.  Example
 
    {
      "access_token": "SlAV32hkKG",
@@ -2225,7 +2274,7 @@ Table of Contents
    successful completion.  Any prior deferred code values associated
    with the same deferred processing state are also invalidated.
 
-12.5.  Unsuccessful Completion
+13.5.  Unsuccessful Completion
 
    If the authorization server determines that the originating request
    cannot be completed successfully, it returns a token endpoint error
@@ -2237,13 +2286,13 @@ Table of Contents
    be used when more specific.  The authorization server MUST NOT return
    invalid_grant for unsuccessful completion of an otherwise valid
    deferred request; that error is reserved for an invalid or unbound
-   deferred code (see Section 12.7).
+   deferred code (see Section 13.7).
 
    {
      "error": "access_denied"
    }
 
-12.6.  Expired Deferred Code
+13.6.  Expired Deferred Code
 
    If the deferred code has expired, the authorization server returns a
    token endpoint error response.
@@ -2252,7 +2301,7 @@ Table of Contents
      "error": "expired_token"
    }
 
-12.7.  Invalid Deferred Code
+13.7.  Invalid Deferred Code
 
    If the deferred code is malformed, unknown, revoked, not bound to the
    requesting client, or otherwise invalid, the authorization server
@@ -2262,7 +2311,7 @@ Table of Contents
      "error": "invalid_grant"
    }
 
-13.  Cancellation
+14.  Cancellation
 
    A client MAY abandon a deferred request by revoking the deferred code
    at the authorization server's revocation endpoint as defined by
@@ -2273,7 +2322,7 @@ Table of Contents
    The client MUST authenticate to the revocation endpoint with
    credentials, sender-constraining proof, and certificate or DPoP
    binding equivalent to those required for a continuation request as
-   defined in Section 11.2.  If the binding does not match the deferred
+   defined in Section 12.2.  If the binding does not match the deferred
    processing state, the authorization server MUST treat the revocation
    request as not authorized for that state and MUST NOT terminate it.
 
@@ -2281,7 +2330,7 @@ Table of Contents
    completed terminates the state.  Subsequent continuation requests
    MUST return access_denied when the authorization server can identify
    them as continuations of the canceled state; otherwise they return
-   invalid_grant per Section 12.7.
+   invalid_grant per Section 13.7.
 
    Revocation interacts with the completion race window as follows:
 
@@ -2314,9 +2363,9 @@ Table of Contents
    SHOULD process revocation requests in a manner that does not reveal
    through HTTP status, body, or timing whether the deferred code was
    recognized, expired, rotated, or already completed, consistent with
-   [RFC7009] and Section 17.14.
+   [RFC7009] and Section 18.14.
 
-14.  Notification
+15.  Notification
 
    This specification defines an OPTIONAL notification mode that allows
    the authorization server to inform a registered client when deferred
@@ -2325,7 +2374,7 @@ Table of Contents
    than by a profile, and it is restricted to state-change hints (it
    carries only the affected deferred_code, not result data).  Clients
    MUST continue to obtain processing results by submitting continuation
-   requests as defined in Section 11.2.
+   requests as defined in Section 12.2.
 
    The notification mode is in the substrate, rather than left to
    profiles, for two reasons.  First, the polling cost reduction from a
@@ -2342,10 +2391,10 @@ Table of Contents
 
    The generic hook for profile-defined advisory delivery channels in
    Section 6.5 permits profiles to define additional channels, which MAY
-   carry non-authoritative result metadata subject to the requirements
-   stated there.  The notification mode defined in this section is
-   independent of that hook and is governed by the rules in this
-   section.
+   carry non-authoritative result metadata or sender-constrained issued
+   credentials subject to the requirements stated there.  The
+   notification mode defined in this section is independent of that hook
+   and is governed by the rules in this section.
 
    The notification mode applies equally to deferred processing state
    created from a token endpoint originating request and to state
@@ -2363,7 +2412,7 @@ Table of Contents
    notification tokens for compatibility with CIBA MAY layer such a
    mechanism on top of this specification.
 
-14.1.  Client Notification Endpoint
+15.1.  Client Notification Endpoint
 
    A client that wishes to receive notifications registers a
    notification endpoint URL using the client metadata parameter
@@ -2374,7 +2423,7 @@ Table of Contents
    The endpoint MUST be an HTTPS URI.  It MUST NOT contain a fragment
    component.
 
-14.2.  Notification Token Parameter
+15.2.  Notification Token Parameter
 
    When the authorization server defers an originating request from a
    client that has registered a notification endpoint and intends to
@@ -2406,7 +2455,7 @@ Table of Contents
    the previous value and validate subsequent notifications against the
    replacement.
 
-14.2.1.  Example
+15.2.1.  Example
 
    A deferred processing response with a notification_token:
 
@@ -2418,7 +2467,7 @@ Table of Contents
      "expires_in": 900
    }
 
-14.3.  Notification Request
+15.3.  Notification Request
 
    When the authorization server elects to send a notification, it sends
    an HTTPS POST request to the client's registered notification
@@ -2443,7 +2492,7 @@ Table of Contents
    The notification conveys only that the deferred processing state has
    changed.
 
-14.4.  Notification Response
+15.4.  Notification Response
 
    The client SHOULD respond with HTTP status 200 OK or 204 No Content
    and MUST NOT include processing results in the response body.
@@ -2457,7 +2506,7 @@ Table of Contents
    successful notification delivery; deferred processing state remains
    authoritative and is obtained through continuation requests.
 
-14.5.  Client Behavior
+15.5.  Client Behavior
 
    A client that receives a notification MUST validate the bearer
    credential in the Authorization header against the most recent
@@ -2474,7 +2523,7 @@ Table of Contents
    interval indicated by the authorization server remains required when
    no notification has been received.
 
-14.6.  Authorization Server Behavior
+15.6.  Authorization Server Behavior
 
    The authorization server MAY deliver a notification on any state
    transition, including transitions to Pending, Interaction Required,
@@ -2486,13 +2535,13 @@ Table of Contents
    MUST NOT include client credentials or other long-lived secrets in
    the notification request.
 
-15.  Per-Grant-Type Considerations
+16.  Per-Grant-Type Considerations
 
    This specification applies to any OAuth token request and to any
    OAuth authorization request.  The following subsections describe per-
    grant-type considerations for token endpoint originating requests.
    Considerations for authorization endpoint originating requests are
-   addressed in Section 8; this section does not duplicate them.
+   addressed in Section 9; this section does not duplicate them.
 
    When an authorization server defers an originating request, it MUST
    preserve the security properties of the corresponding grant type or
@@ -2501,15 +2550,15 @@ Table of Contents
    bypass proof requirements, or allow the client to substitute
    different grant inputs during continuation.
 
-   Partial completion as defined in Section 10 is applicable to grant
+   Partial completion as defined in Section 11 is applicable to grant
    types that can produce an artifact reflecting currently-available
    authorization while the remainder is resolved asynchronously, subject
-   to the profile signaling requirement stated at the top of Section 10.
+   to the profile signaling requirement stated at the top of Section 11.
    The grant types described below are individually annotated where
    partial completion applies, does not apply, or requires additional
    profile-defined treatment.
 
-15.1.  Authorization Code Grant
+16.1.  Authorization Code Grant
 
    An authorization server MAY defer processing during authorization
    code redemption.
@@ -2529,18 +2578,18 @@ Table of Contents
    authorization server creates deferred processing state.  The
    code_verifier is consumed at that point and MUST NOT be re-presented
    on continuation requests, consistent with the prohibition on
-   resubmitting originating request parameters in Section 11.2.
+   resubmitting originating request parameters in Section 12.2.
    Continuation requests rely on the PKCE verification result preserved
    in deferred processing state.  This rule applies to deferral of
    authorization code redemption at the token endpoint; the rules for
-   authorization endpoint deferral are defined in Section 8.3.
+   authorization endpoint deferral are defined in Section 9.3.
 
    A profile MAY define partial completion for the authorization code
    grant, for example by issuing a partial access token covering a
    subset of requested scopes together with a deferred_code for the
    upgrade.
 
-15.2.  Refresh Token Grant
+16.2.  Refresh Token Grant
 
    An authorization server MAY require additional evaluation before
    issuing refreshed tokens.
@@ -2565,7 +2614,7 @@ Table of Contents
    partial replacement followed by an upgrade would conflict with the
    refresh token rotation semantics described above.
 
-15.3.  Client Credentials Grant
+16.3.  Client Credentials Grant
 
    An authorization server MAY defer issuance pending workload
    attestation, enterprise policy evaluation, or asynchronous risk
@@ -2580,7 +2629,7 @@ Table of Contents
    subset of requested scopes or resources together with a deferred_code
    for the upgrade.
 
-15.4.  Token Exchange
+16.4.  Token Exchange
 
    An authorization server MAY defer processing during token exchange
    evaluation as defined by [RFC8693].
@@ -2597,7 +2646,7 @@ Table of Contents
    requested resources, audiences, or scopes together with a
    deferred_code for the upgrade.
 
-15.4.1.  Example
+16.4.1.  Example
 
    POST /token HTTP/1.1
    Host: as.example.com
@@ -2618,7 +2667,7 @@ Table of Contents
      "expires_in": 600
    }
 
-15.5.  Rich Authorization Requests
+16.5.  Rich Authorization Requests
 
    When the originating request includes the authorization_details
    parameter defined by [RFC9396], deferred processing state MUST
@@ -2637,7 +2686,7 @@ Table of Contents
    define how to express which authorization details are present in the
    partial artifact and how the upgrade extends them.
 
-15.6.  Assertion Grants
+16.6.  Assertion Grants
 
    An authorization server MAY defer processing during assertion grant
    evaluation as defined by [RFC7521].
@@ -2652,7 +2701,7 @@ Table of Contents
    assertion authorizes a subset of requested authorization that can be
    issued immediately, with the remainder resolvable asynchronously.
 
-15.6.1.  JWT Bearer Example
+16.6.1.  JWT Bearer Example
 
    The following example shows deferred processing for a JWT bearer
    authorization grant as defined by [RFC7523].
@@ -2672,12 +2721,12 @@ Table of Contents
      "expires_in": 300
    }
 
-16.  Authorization Server Metadata
+17.  Authorization Server Metadata
 
    The following OAuth Authorization Server Metadata parameters are
    defined.
 
-16.1.  Deferred Code Processing Supported Metadata
+17.1.  Deferred Code Processing Supported Metadata
 
    The deferred_code_processing_supported metadata parameter is a
    Boolean value indicating support for deferred request processing
@@ -2696,7 +2745,7 @@ Table of Contents
    [RFC8414] MUST include urn:ietf:params:oauth:grant-type:deferred_code
    in that parameter.
 
-16.2.  Deferred Code Grant Types Supported Metadata
+17.2.  Deferred Code Grant Types Supported Metadata
 
    The deferred_code_grant_types_supported metadata parameter is a JSON
    array containing OAuth grant type values for which the authorization
@@ -2716,11 +2765,11 @@ Table of Contents
    appear in this array because the array describes originating token
    request grant types, not the continuation grant type.
 
-16.3.  Deferred Code Authorization Endpoint Supported Metadata
+17.3.  Deferred Code Authorization Endpoint Supported Metadata
 
    The deferred_code_authorization_endpoint_supported metadata parameter
    is a Boolean value indicating support for deferred authorization
-   responses at the authorization endpoint, as defined in Section 8.
+   responses at the authorization endpoint, as defined in Section 9.
 
    If omitted, the default value is false.
 
@@ -2730,11 +2779,11 @@ Table of Contents
    deferral is applied is implementation-defined and MAY be further
    constrained by higher-layer profiles.
 
-16.4.  Deferred Code Notification Supported Metadata
+17.4.  Deferred Code Notification Supported Metadata
 
    The deferred_code_notification_supported metadata parameter is a
    Boolean value indicating support for the notification mode defined in
-   Section 14.
+   Section 15.
 
    If omitted, the default value is false.
 
@@ -2743,7 +2792,7 @@ Table of Contents
    and SHOULD include a notification_token in deferred processing
    responses for those clients when notifications will be delivered.
 
-16.4.1.  Example
+17.4.1.  Example
 
    {
      "issuer": "https://as.example.com",
@@ -2769,12 +2818,12 @@ Table of Contents
      "deferred_code_notification_supported": true
    }
 
-17.  Security Considerations
+18.  Security Considerations
 
    Implementations MUST follow the OAuth 2.0 Security Best Current
    Practice [RFC9700] in addition to the requirements in this section.
 
-17.1.  Deferred Code Entropy
+18.1.  Deferred Code Entropy
 
    Deferred codes MUST contain sufficient entropy to resist guessing
    attacks.
@@ -2785,7 +2834,7 @@ Table of Contents
    secure random source or protect structured values using integrity and
    confidentiality mechanisms appropriate for bearer artifacts.
 
-17.2.  Deferred Code Binding
+18.2.  Deferred Code Binding
 
    The authorization server MUST bind the deferred code to the
    originating request and associated security context.
@@ -2798,7 +2847,7 @@ Table of Contents
    grant-type-specific input artifacts, and any other values that affect
    token issuance.
 
-17.3.  Proof-of-Possession Continuity
+18.3.  Proof-of-Possession Continuity
 
    Deferred processing MUST preserve proof-of-possession and sender-
    constraining properties from the originating request through every
@@ -2827,7 +2876,7 @@ Table of Contents
    nonce.  Nonce rotation is independent of deferred code rotation;
    either, both, or neither MAY occur on a given continuation response.
 
-17.4.  Client Authentication
+18.4.  Client Authentication
 
    The authorization server MUST require client authentication
    equivalent to the originating request when the originating request
@@ -2879,7 +2928,7 @@ Table of Contents
 
    For authorization endpoint originating requests, the PKCE [RFC7636]
    code_verifier is presented on the first continuation request as
-   defined in Section 8.3 and MAY serve as an additional continuation
+   defined in Section 9.3 and MAY serve as an additional continuation
    binding for the originating client instance, since it authenticates
    possession of the verifier that produced the code_challenge carried
    on the originating request.  Authorization servers MAY still require
@@ -2897,7 +2946,7 @@ Table of Contents
    clients without an applicable continuation binding — one of the
    bindings above for token endpoint originating requests, or one of the
    bindings above or the PKCE-on-first-continuation binding described in
-   Section 8.3 for authorization endpoint originating requests.  A
+   Section 9.3 for authorization endpoint originating requests.  A
    bearer-only deferred_code issued to a public client without an
    accompanying continuation binding is recoverable by any party that
    observes the value (through logs, intermediaries, the redirect
@@ -2907,7 +2956,7 @@ Table of Contents
    client authentication, sender-constraining, or proof-of-possession
    requirements from the originating request.
 
-17.5.  Deferred Code Replay
+18.5.  Deferred Code Replay
 
    Authorization servers SHOULD detect replay of invalidated or rotated
    deferred codes.
@@ -2916,7 +2965,7 @@ Table of Contents
    returned through an interaction channel, logged by intermediaries, or
    exposed to user agents.
 
-17.6.  Deferred Code Rotation
+18.6.  Deferred Code Rotation
 
    Authorization servers MAY rotate deferred codes during continuation
    processing.
@@ -2934,7 +2983,7 @@ Table of Contents
    sender-constrained or protected by an equivalent replay-resistant
    mechanism.
 
-17.7.  Authorization Endpoint Deferral
+18.7.  Authorization Endpoint Deferral
 
    A deferred_code delivered through a deferred authorization response
    is conveyed via the user-agent redirect, and is therefore subject to
@@ -2956,7 +3005,7 @@ Table of Contents
    constraining or session-binding on continuation requests sufficient
    to prevent another client instance that obtains the deferred code
    from completing the continuation, consistent with the public-client
-   continuation binding requirements in Section 9.1.
+   continuation binding requirements in Section 10.1.
 
    Authorization servers MUST validate the redirect_uri of the
    originating authorization request and complete any other
@@ -2987,10 +3036,10 @@ Table of Contents
 
    When a deferred code returned through the authorization endpoint
    redirect has a lifetime measured in hours or days under the rules of
-   Section 17.12, the authorization server MUST sender-constrain the
+   Section 18.12, the authorization server MUST sender-constrain the
    deferred code through DPoP [RFC9449], mutual-TLS client certificate
    binding [RFC8705], or an equivalent mechanism.  PKCE [RFC7636], while
-   required as a continuation binding for public clients by Section 8.3,
+   required as a continuation binding for public clients by Section 9.3,
    is not by itself sufficient for long-lived front-channel deferred
    codes: PKCE binds the client instance that originated the request,
    but a stolen browser session retaining access to the original client
@@ -3009,9 +3058,9 @@ Table of Contents
    security event for monitoring and MAY trigger additional risk-based
    controls defined by local policy or higher-layer profiles.
 
-17.8.  Partial Completion
+18.8.  Partial Completion
 
-   A partial completion response, as defined in Section 10, issues an
+   A partial completion response, as defined in Section 11, issues an
    artifact immediately while a continuation upgrade remains pending.
    The issued partial artifact is valid according to its own semantics
    and remains so regardless of how deferred processing eventually
@@ -3030,7 +3079,7 @@ Table of Contents
 
    The partial artifact and the deferred code have independent
    lifetimes.  The deferred code lifetime is governed by the lifetime
-   guidance in Section 17.12; the partial artifact's lifetime is
+   guidance in Section 18.12; the partial artifact's lifetime is
    governed by the issuing grant type's normal rules.  Authorization
    servers SHOULD NOT issue partial artifacts whose lifetimes exceed
    what the originating request would have produced under full
@@ -3039,7 +3088,7 @@ Table of Contents
    Sender-constraining material applied to the originating request MUST
    also apply to the partial artifact in the same way it applies to a
    fully synchronously issued artifact.  The continuation upgrade
-   preserves sender-constraining continuity as defined in Section 17.3;
+   preserves sender-constraining continuity as defined in Section 18.3;
    the upgraded artifact MUST be bound to the same proof-of-possession
    material as the partial artifact.
 
@@ -3055,7 +3104,7 @@ Table of Contents
    partially, what upgrade outcome was reached, and whether artifact
    invalidation occurred.
 
-17.9.  Interaction URI Protection
+18.9.  Interaction URI Protection
 
    Interaction URIs MUST use HTTPS.
 
@@ -3072,7 +3121,7 @@ Table of Contents
    authorization or authentication.  Completion semantics are defined by
    the authorization server or by a higher-layer profile.
 
-17.10.  Concurrent Continuation Requests
+18.10.  Concurrent Continuation Requests
 
    Clients SHOULD send at most one outstanding continuation request per
    deferred processing state.  Multiple concurrent continuation
@@ -3091,7 +3140,7 @@ Table of Contents
    invalid_grant even if the deferred processing state itself is still
    valid.
 
-17.11.  Continuation Request Rate Limiting
+18.11.  Continuation Request Rate Limiting
 
    Authorization servers SHOULD rate limit continuation requests.
 
@@ -3100,7 +3149,7 @@ Table of Contents
    Authorization servers MAY increase the interval value when clients
    poll too frequently.
 
-17.12.  Deferred Processing Lifetime
+18.12.  Deferred Processing Lifetime
 
    Authorization servers SHOULD limit deferred processing lifetime and
    invalidate expired deferred codes.
@@ -3147,7 +3196,7 @@ Table of Contents
    relying solely on the snapshot captured when deferred processing
    state was created.
 
-17.13.  Authorization Scope Stability
+18.13.  Authorization Scope Stability
 
    Continuation processing MUST NOT expand the requested authorization
    beyond the originating request.  Authorization servers MUST evaluate
@@ -3157,7 +3206,7 @@ Table of Contents
    applies equally to deferred token endpoint requests and deferred
    authorization endpoint requests.
 
-17.14.  Oracle Resistance
+18.14.  Oracle Resistance
 
    Deferred processing can expose information about policy state if
    attackers can compare immediate denial, deferred processing, polling
@@ -3171,7 +3220,7 @@ Table of Contents
    intervals, and expiration behavior where those signals would
    otherwise disclose sensitive information.
 
-17.15.  Security Event Logging
+18.15.  Security Event Logging
 
    Authorization servers SHOULD record security events for deferred code
    creation, continuation requests, deferred code rotation, interaction
@@ -3183,7 +3232,7 @@ Table of Contents
    secrets, subject tokens, assertions, authorization codes, refresh
    tokens, or other sensitive artifacts in cleartext.
 
-17.16.  Cancellation Authorization
+18.16.  Cancellation Authorization
 
    The authorization server MUST authorize cancellation requests against
    the deferred processing state with the same rigor applied to
@@ -3195,7 +3244,7 @@ Table of Contents
    Authorization servers SHOULD record successful and rejected
    revocation attempts as security events.
 
-17.17.  Notification Endpoint Protection
+18.17.  Notification Endpoint Protection
 
    The notification endpoint registered by a client is dereferenced by
    the authorization server and is therefore a server-side request
@@ -3223,7 +3272,7 @@ Table of Contents
    before treating the notification as authentic.  Clients SHOULD apply
    rate limiting to the notification endpoint to mitigate abuse.
 
-17.18.  Notification Token Protection
+18.18.  Notification Token Protection
 
    The notification_token is a bearer credential.  Authorization servers
    MUST issue notification tokens with sufficient entropy to resist
@@ -3238,7 +3287,7 @@ Table of Contents
    Authorization servers MUST NOT reuse a notification_token value
    across distinct deferred processing states.
 
-17.19.  Notification Information Leakage
+18.19.  Notification Information Leakage
 
    The notification payload conveys only the affected deferred_code.
    Authorization servers MUST NOT include access tokens, identity
@@ -3264,7 +3313,7 @@ Table of Contents
    than on every state transition, or rely on polling without
    notifications.
 
-17.20.  Privacy Considerations
+18.20.  Privacy Considerations
 
    Deferred processing can retain information from the originating
    request, including subject identifiers, requested resources, policy
@@ -3277,14 +3326,14 @@ Table of Contents
    details, or policy decisions to parties that can observe browser
    history, logs, referrer headers, or network metadata.
 
-18.  IANA Considerations
+19.  IANA Considerations
 
-18.1.  OAuth Parameters Registry
+19.1.  OAuth Parameters Registry
 
    This specification registers the following parameters in the "OAuth
    Parameters" registry established by [RFC6749].
 
-   Parameter name:  grant_mode
+   Parameter name:  completion_mode
 
    Parameter usage location:  authorization request, token request
 
@@ -3325,10 +3374,10 @@ Table of Contents
 
    Specification document(s):  This document
 
-18.2.  OAuth Grant Mode Values Registry
+19.2.  OAuth Completion Mode Values Registry
 
-   This specification establishes the "OAuth Grant Mode Values"
-   registry.  The registry contains values used in the grant_mode
+   This specification establishes the "OAuth Completion Mode Values"
+   registry.  The registry contains values used in the completion_mode
    parameter defined in Section 7.
 
    The registration policy for new values is Specification Required as
@@ -3338,15 +3387,15 @@ Table of Contents
 
    Value:  deferred
 
-   Description:  Client accepts a deferred grant.  The authorization
-      server MAY produce the grant asynchronously and return a
+   Description:  Client accepts deferred completion.  The authorization
+      server MAY complete the request asynchronously and return a
       deferred_code for continuation.
 
    Change controller:  IETF
 
    Specification document(s):  This document
 
-18.3.  OAuth Authorization Server Metadata Registry
+19.3.  OAuth Authorization Server Metadata Registry
 
    This specification registers the following parameters in the "OAuth
    Authorization Server Metadata" registry established by [RFC8414].
@@ -3388,7 +3437,7 @@ Table of Contents
 
    Specification document(s):  This document
 
-18.4.  OAuth Dynamic Client Registration Metadata Registry
+19.4.  OAuth Dynamic Client Registration Metadata Registry
 
    This specification registers the following parameters in the "OAuth
    Dynamic Client Registration Metadata" registry established by
@@ -3415,7 +3464,7 @@ Table of Contents
 
    Specification Document(s):  This document
 
-18.5.  OAuth URI Registry
+19.5.  OAuth URI Registry
 
    This specification registers the following URI in the "OAuth URI"
    registry established by [RFC6755].
@@ -3428,14 +3477,14 @@ Table of Contents
 
    Specification document(s):  This document
 
-18.6.  OAuth Extensions Error Registry
+19.6.  OAuth Extensions Error Registry
 
    The error names authorization_pending, slow_down, and expired_token
    are already registered in the "OAuth Extensions Error Registry"
    established by [RFC6749] by the OAuth Device Authorization Grant
    [RFC8628].  This specification reuses those error names at the token
    endpoint with the generalized deferred-processing semantics defined
-   in Section 9.2.  No registry changes are required for these three
+   in Section 10.2.  No registry changes are required for these three
    error names; the registrations continue to point to [RFC8628], and
    this document defines how those errors apply to deferred processing
    state in addition to device authorization state.
@@ -3466,9 +3515,9 @@ Table of Contents
 
    Specification document(s):  OpenID Connect Core 1.0; this document
 
-19.  References
+20.  References
 
-19.1.  Normative References
+20.1.  Normative References
 
    [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
               Requirement Levels", BCP 14, RFC 2119,
@@ -3561,7 +3610,7 @@ Table of Contents
               RFC 9700, DOI 10.17487/RFC9700, January 2025,
               <https://www.rfc-editor.org/rfc/rfc9700>.
 
-19.2.  Informative References
+20.2.  Informative References
 
    [CIBA]     "OpenID Client Initiated Backchannel Authentication Core",
               n.d., <https://openid.net/specs/openid-client-initiated-
@@ -3569,6 +3618,11 @@ Table of Contents
 
    [DTR]      "OpenID Connect Deferred Transaction Resources", n.d.,
               <https://gniero.github.io/oidc-dtr-resources/>.
+
+   [INTERIM-GRANT-MODE]
+              "OAuth 2.0 Interim Partial Completion and Grant Mode
+              Parameter", n.d., <https://datatracker.ietf.org/doc/draft-
+              mcguinness-oauth-interim-grant-mode>.
 
    [JWT-GRANT-INTERACTION]
               "OAuth JWT Grant Interaction Response", n.d.,
@@ -3682,10 +3736,10 @@ A.3.  Why the Error Response Encoding
    *  *Naïve-client safety as a defense-in-depth property.* Under
       Section 6.2, an authorization server SHOULD NOT defer originating
       requests from a client that has neither registered
-      deferred_code_processing_supported=true nor sent an applicable
-      grant_mode value on the request, so an unaware client is not
-      normally exposed to a deferred response in the first place.  The
-      400-error encoding provides a second line of safety for cases
+      deferred_code_processing_supported=true nor sent
+      completion_mode=deferred on the request, so an unaware client is
+      not normally exposed to a deferred response in the first place.
+      The 400-error encoding provides a second line of safety for cases
       where deferral nonetheless reaches an unaware client (for example,
       a client implementation that registered the metadata but whose
       runtime code path does not actually handle the deferred-response
@@ -3729,49 +3783,60 @@ A.3.  Why the Error Response Encoding
    [RFC8628] and to obtain the uniformity, safety, and composition
    properties listed above.
 
-A.4.  Why the Grant Mode Parameter
+A.4.  Why the Completion Mode Parameter
 
-   This specification defines one new request parameter, grant_mode, and
-   one new IANA registry to govern its values.  The parameter is
-   justified by the following points:
+   This specification defines one new request parameter, completion_mode
+   (see Section 7), and one new IANA registry to govern its values.  The
+   parameter is justified by the following points:
 
-   *  *The substrate ships with one value (deferred) but is designed to
-      host more.* Per-request signaling for the deferred value alone is
-      largely redundant with static client metadata (see Section 6.2): a
-      client whose metadata permits deferral can have a request deferred
-      by authorization server policy even without grant_mode=deferred on
-      the request.  The parameter earns most of its weight from profile-
-      defined values registered through the "OAuth Grant Mode Values"
-      registry.  Each such value (for example, partial-completion modes,
-      push-delivery acceptance, or revisable-grant acceptance) is a per-
-      request preference that static metadata cannot represent; the
-      registry collects them in one place rather than letting each
-      profile invent its own request parameter.
+   *  *Per-request acceptance is a category distinct from durable
+      capability.* Client metadata declares the modes a client
+      implementation can handle in principle; the completion_mode
+      parameter declares the modes the client accepts for a specific
+      request.  A client that can handle deferred completion in general
+      may still want a particular request completed synchronously (for
+      example, a request on a strict latency budget).  Static metadata
+      cannot represent that per-request choice.
 
    *  *The wire shape is conventional, not novel.* The space-delimited,
       disjunctive, AS-selects-among-them semantics defined in Section 7
       are inherited from scope, response_type, prompt, and acr_values.
-      Section 7.5 walks through the mapping.  The conceptual surface
-      added by this specification is the new registry and the deferred
-      value; the multi-value semantics are not new.
+      Section 8 walks through the mapping.  The conceptual surface added
+      by this specification is the new registry and the deferred value;
+      the multi-value semantics are not new.
 
-   *  *A single parameter avoids parameter explosion as profiles are
-      added.* Without grant_mode, each profile that needs per-request
-      opt-in would either define its own request parameter (multiplying
-      the OAuth request surface) or overload scope (which is reserved
-      for authorization, not delivery mode).  A single registry-governed
-      parameter is the cheapest extension point compatible with OAuth
-      precedent.
+   *  *A registry avoids profile-level parameter explosion for
+      completion modes.* Without completion_mode, each profile that
+      needs per-request opt-in for an alternative completion mode (push
+      delivery, streaming, others) would either define its own request
+      parameter (multiplying the OAuth request surface) or overload
+      scope (which is reserved for authorization, not completion).  A
+      single registry-governed parameter is the cheapest extension point
+      compatible with OAuth precedent.
 
-   *  *grant_mode=deferred is retained for forward compatibility.* A
-      client that wishes to opt into deferral for a specific request
-      without statically registering capability uses grant_mode=deferred
-      to do so.  The value also positions the substrate as the
-      registry's anchor and demonstrates the parameter's per-request
-      signaling shape, on which profile-defined values are modeled.
+   *  *completion_mode=deferred is the substrate's anchor value.* Per-
+      request signaling for deferred alone is largely redundant with
+      static client metadata (see Section 6.2): a client whose metadata
+      permits deferral can have a request deferred by authorization
+      server policy even without completion_mode=deferred on the
+      request.  The value's weight is its role as the substrate's only
+      built-in value and the demonstration of the per-request signaling
+      shape on which profile-defined values are modeled.
+
+   *  *Shape and handling modes are out of scope for this parameter.*
+      This specification deliberately confines completion_mode to _how_
+      the request is completed.  Values about the _shape_ of the
+      produced grant or the _handling_ of the request (for example, a
+      partial-completion artifact shape, or a revisable-request
+      handshake) are different in kind and would be a category error
+      under completion_mode.  Such values are expected to be carried in
+      a separate request parameter defined outside this specification;
+      the companion specification [INTERIM-GRANT-MODE] illustrates this
+      approach by bundling a grant_mode parameter framework with its
+      first value definition (following the RFC 9396 model).
 
    The two-channel arrangement (durable capability in client metadata,
-   per-request acceptance in grant_mode) follows the precedent of
+   per-request acceptance in completion_mode) follows the precedent of
    response_type and its corresponding client metadata field
    response_types.
 
@@ -3870,8 +3935,10 @@ B.2.  Relationship to OpenID Connect CIBA
    *  Completion model: CIBA defines poll, ping, and push modes.  This
       specification defines token endpoint polling through the deferred
       code grant type and an OPTIONAL state-change notification mode
-      (see Section 14); push delivery of access tokens or identity
-      assertions remains outside its scope.
+      (see Section 15).  Profile-defined advisory delivery channels can
+      deliver sender-constrained credentials under Section 6.5, but push
+      delivery of bearer access tokens or unbound identity assertions
+      remains outside its scope.
 
    *  Response semantics: CIBA is designed to return OpenID Connect
       authentication results, including ID Token semantics.  This
@@ -4014,6 +4081,7 @@ D.1.  Token Endpoint Deferral with Interaction
    code=SplxlOBeZQQYbYS6WxSbIA&
    redirect_uri=https%3A%2F%2Fclient.example.com%2Fcb&
    code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk&
+   completion_mode=deferred&
    client_id=s6BhdRkqt3
 
    The authorization server validates the request and PKCE verifier,
@@ -4110,7 +4178,7 @@ D.2.  Authorization Endpoint Deferral with Step-Up
      state=af0ifjsldkj&
      code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&
      code_challenge_method=S256&
-     grant_mode=deferred HTTP/1.1
+     completion_mode=deferred HTTP/1.1
    Host: as.example.com
 
    The authorization server determines that the requested operation
@@ -4192,10 +4260,19 @@ Appendix E.  Profile Author Checklist
    does not impose normative requirements beyond those already stated in
    the body of this specification.
 
-   1.  *Grant Mode value.* Does the profile introduce a new acceptable
-       grant mode?  If so, register a value in the "OAuth Grant Mode
-       Values" registry and specify how it interacts with deferred and
-       any other registered values.
+   1.  *Per-request opt-in signal.* Does the profile introduce a new
+       mode the client must opt into on a per-request basis?  If the
+       mode is a _completion mode_ (how the request's result reaches the
+       client), register a value in the "OAuth Completion Mode Values"
+       registry established by this specification.  If the mode is a
+       _shape or handling mode_ (what the produced grant looks like, or
+       how the originating request is handled), register the value in a
+       registry established outside this specification — for example, in
+       the OAuth Grant Mode Values registry established by
+       [INTERIM-GRANT-MODE], or in a registry the profile establishes
+       itself by bundling parameter mechanics with its first value (the
+       RFC 9396 model).  Specify how the new value interacts with
+       deferred and any other registered values.
 
    2.  *Abstract state.* Does the profile introduce a new externally-
        observable state extending the lifecycle in Section 4.7?  If so,
@@ -4218,7 +4295,7 @@ Appendix E.  Profile Author Checklist
        between submissions and the deferred processing state (e.g., a
        profile-defined handle), and the narrowing comparison rules per
        parameter type.  The mechanism MUST satisfy the narrowing-only
-       constraint stated in Section 11.2.
+       constraint stated in Section 12.2.
 
    5.  *Advisory delivery channel.* Does the profile define a mechanism
        for delivering deferred processing state transitions, completion
@@ -4255,14 +4332,22 @@ Appendix E.  Profile Author Checklist
 
    9.  *Composition with other profiles.* If multiple profiles can apply
        to the same request, the profile SHOULD specify precedence and
-       composition rules, particularly for grant_mode values present
+       composition rules, particularly for opt-in signal values present
        together and response parameters appearing together.
 
-   The proposals/ directory in this specification's repository contains
-   worked examples illustrating both simple profiles (single new
-   grant_mode value, reuse of partial completion) and complex profiles
-   (new state, new response parameters, new parameter-update mechanism
-   layered on the substrate's generic carve-out).
+   Worked examples of profile authorship are available in two places.
+   The companion specification [INTERIM-GRANT-MODE] demonstrates the RFC
+   9396 model of bundling a parameter framework (the grant_mode
+   parameter and its registry) with its first registered value
+   (interim), illustrating how a profile that introduces a new request
+   parameter mechanism can serve as the publication vehicle for that
+   mechanism.  The proposals/ directory in this specification's
+   repository contains additional worked examples ranging from simple
+   single-value profiles (a new completion_mode value layered on the
+   substrate's advisory delivery hook) to complex profiles (a new
+   externally-observable state with profile-defined response parameters
+   and a profile-defined parameter-update mechanism layered on the
+   substrate's generic carve-out).
 
 Appendix F.  Acknowledgements
 
