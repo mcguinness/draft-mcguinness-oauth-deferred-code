@@ -948,10 +948,7 @@ Table of Contents
 
    The authorization server SHOULD avoid exposing sensitive policy
    decisions through differences in whether a request is deferred,
-   denied immediately, or left pending.  Where policy confidentiality is
-   important, authorization servers SHOULD normalize response timing,
-   error selection, and polling behavior to reduce probing or oracle
-   attacks.
+   denied immediately, or left pending; see Section 18.13.
 
 6.4.  Higher-Layer Extension Points
 
@@ -1050,13 +1047,13 @@ Table of Contents
    continuation interface remains the token endpoint as defined in this
    specification; advisory endpoints deliver events or results only.
 
-   Credential delivery through an advisory channel is an exceptional
-   profile-defined optimization, not the default completion path of this
-   substrate.  Profiles SHOULD prefer polling or preview-only advisory
-   delivery unless direct credential delivery materially reduces
-   latency, cost, or reliability risk for the use case and the profile
-   can satisfy the confirmation, cancellation, and polling-equivalence
-   requirements below.
+   Polling at the token endpoint is always available as an authoritative
+   completion path; advisory delivery is one optional additional path
+   that profiles MAY define.  A profile that defines credential delivery
+   through an advisory channel MUST satisfy the confirmation,
+   cancellation, and polling-equivalence requirements below; otherwise
+   the channel is restricted to state-change hints and non-authoritative
+   metadata only.
 
 6.5.2.  Payload Content Rules
 
@@ -1166,10 +1163,7 @@ Table of Contents
    specification's repository.  Both proposals exercise the full scope
    this section permits, including credential delivery when the issued
    access token is sender-constrained, with preview-only delivery as the
-   fallback otherwise.  They are illustrative, not normative, and
-   demonstrate that richer delivery profiles can be specified without
-   amending this substrate; they do not imply that direct credential
-   delivery is appropriate for every advisory transport.
+   fallback otherwise.  They are illustrative, not normative.
 
 7.  Completion Mode Parameter
 
@@ -2926,14 +2920,12 @@ Table of Contents
    Authorization servers SHOULD bind deferred processing state created
    from an authorization endpoint originating request to enough device
    or session context to detect when continuation requests arrive from a
-   context inconsistent with the originating request.  Inconsistent
-   context includes a different network origin, a different user-agent
-   fingerprint, or other deployment-specific signals available to the
-   authorization server.  Detection of inconsistent continuation context
-   is not by itself grounds for rejection (legitimate cross-device flows
-   can produce inconsistent context), but SHOULD be reported as a
-   security event for monitoring and MAY trigger additional risk-based
-   controls defined by local policy or higher-layer profiles.
+   context inconsistent with the originating request.  Detection of
+   inconsistent continuation context is not by itself grounds for
+   rejection (legitimate cross-device flows can produce inconsistent
+   context), but SHOULD be reported as a security event for monitoring
+   and MAY trigger additional risk-based controls defined by local
+   policy or higher-layer profiles.
 
 18.7.  Partial Completion
 
@@ -2985,8 +2977,9 @@ Table of Contents
 
    Interaction URIs MUST use HTTPS.
 
-   Authorization servers SHOULD bind interaction state to authenticated
-   sessions where applicable.
+   When the interaction at the interaction_uri requires an authenticated
+   actor, authorization servers SHOULD bind the interaction state to
+   that actor's authenticated session.
 
    Interaction URIs can become bearer references to sensitive
    continuation state.  Authorization servers MUST NOT place sensitive
@@ -3040,16 +3033,14 @@ Table of Contents
    necessary for the expected asynchronous processing or interaction.
 
    For asynchronous policy evaluation, attestation validation, and out-
-   of-band human-in-the-loop approval delivered through push
-   notification, in-app inbox, or similar channels with sub-hour
-   resolution, deferred code lifetimes SHOULD be measured in minutes.
+   of-band human-in-the-loop approval delivered through channels with
+   sub-hour delivery latency, deferred code lifetimes SHOULD be measured
+   in minutes.
 
    Long-lived deferred processing state, measured in hours or days, is
-   appropriate for use cases including enterprise governance approval
-   workflows, identity verification involving document submission, and
-   autonomous-agent authorization requests pending human review.
-   Authorization servers MAY use such lifetimes when all of the
-   following controls are in place:
+   appropriate for use cases involving extended human review or out-of-
+   band approval workflows.  Authorization servers MAY use such
+   lifetimes when all of the following controls are in place:
 
    *  sender-constraining of the deferred code through DPoP [RFC9449],
       mutual-TLS client certificate binding [RFC8705], or an equivalent
@@ -3062,9 +3053,7 @@ Table of Contents
       the lifetime, such that the deferred state corresponds to a real
       stakeholder decision rather than a passive timeout;
 
-   *  operational monitoring of long-lived deferred state, including
-      detection of replay, code rotation lag, and unusual completion
-      patterns.
+   *  ongoing replay and abuse detection for long-lived deferred state.
 
    Authorization servers using long-lived deferred codes SHOULD apply
    protections equivalent to those required for refresh tokens by
@@ -3099,10 +3088,9 @@ Table of Contents
 
 18.14.  Security Event Logging
 
-   Authorization servers SHOULD record security events for deferred code
-   creation, continuation requests, deferred code rotation, interaction
-   URI creation, interaction completion, successful completion, denial,
-   expiration, revocation, replay detection, and rate-limit enforcement.
+   Authorization servers SHOULD log lifecycle and security events for
+   deferred processing state (creation, rotation, completion, denial,
+   revocation, replay detection, and abuse signals).
 
    Logs SHOULD include enough correlation information to support
    investigation without recording deferred code values, interaction URI
@@ -3117,9 +3105,6 @@ Table of Contents
    value but does not satisfy sender-constraining or proof-of-possession
    bindings MUST NOT be able to terminate deferred processing state
    through revocation.
-
-   Authorization servers SHOULD record successful and rejected
-   revocation attempts as security events.
 
 18.16.  Notification Endpoint Protection
 
@@ -3166,29 +3151,27 @@ Table of Contents
 
 18.18.  Notification Information Leakage
 
-   The notification payload conveys only the affected deferred_code.
-   Authorization servers MUST NOT include access tokens, identity
-   claims, attestation outcomes, policy results, subject identifiers, or
-   other state in the notification body or headers.
+   The payload-content restriction stated in Section 15 applies: the
+   notification body conveys only the affected deferred_code and MUST
+   NOT include credentials, identity claims, attestation outcomes,
+   policy results, subject identifiers, or other state.
 
    Notification timing is observable to anyone with access to the
-   client's notification endpoint traffic, including shared hosting
-   infrastructure, CDN access logs, operational dashboards, and any
-   intermediaries between the authorization server and the client
-   endpoint.  The time between deferral and notification, the time
-   between notifications, and the absence of expected notifications all
-   leak information about deferred processing state, including approval
-   latency, attestation evaluation duration, manager-review wait time,
-   and policy evaluation cost.
+   client's notification endpoint traffic, including transport
+   intermediaries and any party with visibility into the client's
+   inbound network logs.  The time between deferral and notification,
+   the time between notifications, and the absence of expected
+   notifications all leak information about deferred processing state,
+   including approval latency, attestation evaluation duration, and
+   policy evaluation cost.
 
    Authorization servers SHOULD avoid using notification timing or
    delivery patterns that would reveal sensitive information about
    deferred processing state, consistent with the oracle resistance
    requirements above.  Where timing observability is a material
-   concern, authorization servers SHOULD apply jitter to notification
-   delivery, deliver notifications on a coarse-grained schedule rather
-   than on every state transition, or rely on polling without
-   notifications.
+   concern, authorization servers SHOULD apply mitigations such as
+   delivery jitter, batched delivery, or fallback to polling-only
+   delivery.
 
 18.19.  Privacy Considerations
 
