@@ -206,8 +206,9 @@ Table of Contents
      19.2.  OAuth Completion Mode Values Registry
      19.3.  OAuth Authorization Server Metadata Registry
      19.4.  OAuth Dynamic Client Registration Metadata Registry
-     19.5.  OAuth URI Registry
-     19.6.  OAuth Extensions Error Registry
+     19.5.  OAuth Token Type Hints Registry
+     19.6.  OAuth URI Registry
+     19.7.  OAuth Extensions Error Registry
    20. References
      20.1.  Normative References
      20.2.  Informative References
@@ -870,9 +871,11 @@ Table of Contents
    implementation can handle in principle; the completion_mode parameter
    declares the modes the client accepts for a specific request.  The
    two operate together: an authorization server SHOULD defer only when
-   both the client's static metadata permits it and the request itself
-   is eligible under the authorization server's policy (the default
-   behavior when completion_mode is absent is defined in Section 7).
+   client metadata does not explicitly prohibit deferral and the request
+   itself is eligible under the authorization server's policy.  When
+   client metadata is omitted, completion_mode=deferred can provide the
+   per-request acceptance signal for that request.  The default behavior
+   when completion_mode is absent is defined in Section 7.
 
    The two-channel arrangement matches the precedent set by existing
    OAuth and OpenID Connect parameters such as response_type and its
@@ -1158,7 +1161,10 @@ Table of Contents
    specification's repository.  Both proposals exercise the full scope
    this section permits, including credential delivery when the issued
    access token is sender-constrained, with preview-only delivery as the
-   fallback otherwise.  They are illustrative, not normative.
+   fallback otherwise.  Credential delivery in those examples is an
+   exceptional profile-defined optimization, not the default expected
+   use of advisory delivery.  The examples are illustrative, not
+   normative.
 
 7.  Completion Mode Parameter
 
@@ -2571,6 +2577,12 @@ Table of Contents
    grant type or every token request is eligible for deferred
    processing.
 
+   This authorization server metadata parameter intentionally has the
+   same name as the client metadata parameter defined in Section 6.2 and
+   registered in Section 19.  The registries are distinct; the
+   authorization server metadata value advertises server support, while
+   the client metadata value declares client capability.
+
    An authorization server that supports this specification and
    publishes the grant_types_supported metadata parameter defined by
    [RFC8414] MUST include urn:ietf:params:oauth:grant-type:deferred_code
@@ -3261,7 +3273,26 @@ Table of Contents
 
                                   Table 5
 
-19.5.  OAuth URI Registry
+   The deferred_code_processing_supported name is intentionally also
+   registered in the OAuth Authorization Server Metadata registry.  The
+   same name is used in distinct registries for the corresponding
+   server-support and client-capability signals.
+
+19.5.  OAuth Token Type Hints Registry
+
+   This specification registers the following value in the "OAuth Token
+   Type Hints" registry established by [RFC7009]:
+
+         +===============+=======================================+
+         | Hint value    | Description                           |
+         +===============+=======================================+
+         | deferred_code | Token type hint for a deferred code   |
+         |               | submitted to the revocation endpoint. |
+         +---------------+---------------------------------------+
+
+                                  Table 6
+
+19.6.  OAuth URI Registry
 
    This specification registers the following URI in the "OAuth URI"
    registry established by [RFC6755]:
@@ -3273,9 +3304,9 @@ Table of Contents
     |                                                | Grant Type    |
     +------------------------------------------------+---------------+
 
-                                 Table 6
+                                 Table 7
 
-19.6.  OAuth Extensions Error Registry
+19.7.  OAuth Extensions Error Registry
 
    This specification reuses existing error codes in the "OAuth
    Extensions Error Registry" established by [RFC6749] with the
@@ -3313,7 +3344,7 @@ Table of Contents
       | document(s)      |                                         |
       +------------------+-----------------------------------------+
 
-                                 Table 7
+                                 Table 8
 
 20.  References
 
