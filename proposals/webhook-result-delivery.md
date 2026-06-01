@@ -12,7 +12,7 @@ This proposal defines a webhook delivery profile that pushes a completion event 
 
 This proposal defines:
 
-- A new `grant_mode` value, `push`, by which clients signal they accept webhook completion delivery.
+- A new `completion_mode` value, `push`, by which clients signal they accept webhook completion delivery.
 - An AS-initiated HTTPS POST to a client-registered endpoint carrying a completion event with either a sender-constrained access token response or a non-authoritative preview, depending on whether the issued credentials are sender-constrained.
 - A delivery-confirmation mechanism through the webhook's HTTP response, and a cancellation race rule that distinguishes confirmed and unconfirmed deliveries.
 - AS metadata advertising support and client metadata registering the endpoint.
@@ -30,7 +30,7 @@ This proposal uses the following extension surfaces defined by the base spec:
 
 | Extension surface | Use |
 |---|---|
-| OAuth Grant Mode Values Registry (Specification Required policy) | Registers `push` |
+| OAuth Completion Mode Values Registry (Specification Required policy) | Registers `push` |
 | §Profile-Defined Advisory Delivery Channels (generic hook) | Defines the webhook channel as a concrete instance, subject to the bearer-credential exclusions, additional requirements for credential delivery, and polling-availability rule |
 | OAuth Authorization Server Metadata Registry | Registers `deferred_code_push_delivery_supported` |
 | OAuth Dynamic Client Registration Metadata Registry | Registers `deferred_code_push_delivery_endpoint` |
@@ -41,7 +41,9 @@ This proposal lands entirely on the base spec's generic advisory delivery channe
 ## Defined Value
 
 **push**
-: Client accepts webhook completion delivery to the registered `deferred_code_push_delivery_endpoint`. The authorization server MAY deliver a completion event to that endpoint when deferred processing completes. When the issued access token is sender-constrained (DPoP-bound or mTLS-bound), the completion event MAY carry the access token response. Combining with `deferred` signals acceptance of both deferred processing and push completion delivery: `grant_mode=deferred push`.
+: Client accepts webhook completion delivery to the registered `deferred_code_push_delivery_endpoint`. The authorization server MAY deliver a completion event to that endpoint when deferred processing completes. When the issued access token is sender-constrained (DPoP-bound or mTLS-bound), the completion event MAY carry the access token response. Combining with `deferred` signals acceptance of both deferred completion and push completion delivery: `completion_mode=deferred push`.
+
+The `push` value does not by itself authorize ordinary deferred-code processing. A client that accepts webhook delivery for a deferred request SHOULD send `completion_mode=deferred push`. If a request contains `completion_mode=push` without `deferred`, the authorization server MUST NOT infer acceptance of deferred completion from `push` alone; it MAY use push delivery only when deferred processing is otherwise authorized by client metadata or by a profile that explicitly defines `push`-only semantics.
 
 ## Wire Shape
 
@@ -165,7 +167,7 @@ If push delivery fails (network error, validation failure, client rejection), th
 
 ## Authorization Server Behavior
 
-The authorization server MAY deliver completion events via webhook to clients that have registered a `deferred_code_push_delivery_endpoint` and signaled `grant_mode=push`. The authorization server MUST NOT depend on successful delivery; deferred processing state remains observable through continuation requests until delivery is confirmed or the state ends.
+The authorization server MAY deliver completion events via webhook to clients that have registered a `deferred_code_push_delivery_endpoint` and signaled `completion_mode=push`, provided deferred processing for the request is also authorized by `completion_mode=deferred`, client metadata, or an explicit profile rule. The authorization server MUST NOT depend on successful delivery; deferred processing state remains observable through continuation requests until delivery is confirmed or the state ends.
 
 The authorization server MUST issue `deferred_code_push_delivery_token` values with sufficient entropy and bind each to a single deferred processing state, similar to the base specification's `notification_token` requirements.
 
@@ -187,7 +189,7 @@ The authorization server MUST track the confirmation state of each delivery and 
 
 This proposal would register:
 
-**OAuth Grant Mode Values:**
+**OAuth Completion Mode Values:**
 | Value | Description |
 |---|---|
 | `push` | Client accepts webhook completion delivery |
@@ -211,7 +213,7 @@ This proposal would register:
 
 This proposal exercises the following base-spec extension surfaces:
 
-1. **Grant Mode value registration.** `push` is added via the Specification Required policy.
+1. **Completion Mode value registration.** `push` is added via the Specification Required policy.
 2. **AS metadata.** `deferred_code_push_delivery_supported` registered.
 3. **Client metadata.** `deferred_code_push_delivery_endpoint` registered.
 4. **Advisory delivery channel carrying sender-constrained credentials.** The webhook payload MAY carry an access token response when the credentials are sender-constrained, exercising the credential-delivery scope of §Profile-Defined Advisory Delivery Channels.

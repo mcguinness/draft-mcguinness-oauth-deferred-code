@@ -12,11 +12,13 @@ This proposal defines a Server-Sent Events (SSE) streaming profile that lets a c
 
 This proposal defines:
 
-- A new `grant_mode` value, `stream`, by which clients signal acceptance of SSE streaming.
+- A new `completion_mode` value, `stream`, by which clients signal acceptance of SSE streaming.
 - A new HTTPS endpoint (the SSE streaming endpoint) at which clients open SSE connections using a short-lived stream handle bound to an existing deferred processing state.
 - The SSE event format for state transitions, slow-down signals, and final completion indications.
 - Authentication and binding of the SSE connection to the deferred processing state.
 - Polling fallback when SSE is unavailable or the connection drops.
+
+SSE is primarily a state streaming profile. Credential delivery over SSE is permitted only for sender-constrained credentials and is less robust than delivery mechanisms with explicit application-layer acknowledgement. Profiles that do not need credential delivery SHOULD use SSE for state transitions and result previews, then obtain credentials through polling.
 
 This proposal does not define:
 
@@ -29,19 +31,21 @@ This proposal uses the following extension surfaces defined by the base spec:
 
 | Extension surface | Use |
 |---|---|
-| OAuth Grant Mode Values Registry (Specification Required policy) | Registers `stream` |
+| OAuth Completion Mode Values Registry (Specification Required policy) | Registers `stream` |
 | §Profile-Defined Advisory Delivery Channels (generic hook) | Defines SSE streaming as a concrete instance, including the profile-defined endpoint permitted by the hook |
 | OAuth Authorization Server Metadata Registry | Registers `deferred_code_streaming_endpoint` and `deferred_code_streaming_supported` |
 | OAuth Parameters Registry | Registers `deferred_code_stream_handle` |
 | Abstract State Status | The SSE event vocabulary maps directly to the substrate's Pending / Interaction Required / Complete / Denied / Expired / Invalid states |
-| Continuation polling state machine | Reused as fallback when SSE is unavailable; polling remains authoritative |
+| Continuation polling state machine | Reused as fallback when SSE is unavailable; polling remains available as an authoritative completion path |
 
 This proposal lands entirely on the base spec's generic advisory delivery channel hook; no base-spec amendment is required. The hook explicitly permits profile-defined advisory channels to use new authorization-server endpoints distinct from the token endpoint (with the constraints that such endpoints are published in AS metadata, authenticate using credentials and sender-constraining proof equivalent to a continuation request, and do not host continuation processing). The streaming endpoint defined here is one such profile-defined endpoint.
 
 ## Defined Value
 
 **stream**
-: Client accepts SSE streaming of deferred processing state transitions. The authorization server MAY make the SSE streaming endpoint available for clients that have signaled `stream`. Combining with `deferred` signals acceptance of both deferred processing and streaming delivery: `grant_mode=deferred stream`.
+: Client accepts SSE streaming of deferred processing state transitions and the final completion event. The authorization server MAY make the SSE streaming endpoint available for clients that have signaled `stream`. Combining with `deferred` signals acceptance of both deferred completion and streaming delivery: `completion_mode=deferred stream`.
+
+The `stream` value does not by itself authorize ordinary deferred-code processing. A client that accepts SSE delivery for a deferred request SHOULD send `completion_mode=deferred stream`. If a request contains `completion_mode=stream` without `deferred`, the authorization server MUST NOT infer acceptance of deferred completion from `stream` alone; it MAY make streaming available only when deferred processing is otherwise authorized by client metadata or by a profile that explicitly defines `stream`-only semantics.
 
 ## Wire Shape
 
@@ -82,7 +86,7 @@ Content-Type: text/event-stream
 Cache-Control: no-store
 
 event: state
-data: {"status":"authorization_pending","interval":5,"expires_in":900}
+data: {"event_id":"e1...","issued_at":1714073700,"status":"authorization_pending","interval":5,"expires_in":900}
 
 ~~~
 
@@ -94,26 +98,26 @@ Each state transition produces an event:
 
 ~~~
 event: state
-data: {"status":"interaction_required","interaction_uri":"https://as.example.com/interact/8N5B2K1","expires_in":540}
+data: {"event_id":"e2...","issued_at":1714073760,"status":"interaction_required","interaction_uri":"https://as.example.com/interact/8N5B2K1","expires_in":540}
 
 event: state
-data: {"status":"authorization_pending","expires_in":300}
+data: {"event_id":"e3...","issued_at":1714073820,"status":"authorization_pending","expires_in":300}
 ~~~
 
-The `status` values reuse the substrate's vocabulary (`authorization_pending`, `interaction_required`, `slow_down`). The `data` payload uses the same parameter names as the equivalent token endpoint responses.
+The `status` values reuse the substrate's vocabulary (`authorization_pending`, `interaction_required`, `slow_down`). Every event data payload MUST include `event_id` and `issued_at` so the client can perform replay and freshness checks. Other fields use the same parameter names as the equivalent token endpoint responses.
 
 If the authorization server rotates the `deferred_code` while the stream is open, the next event MUST include the replacement `deferred_code`. The client MUST discard the previous value and use the replacement value for future continuation requests and, if needed, stream reestablishment:
 
 ~~~
 event: state
-data: {"status":"authorization_pending","deferred_code":"P9Q4R2S","expires_in":300}
+data: {"event_id":"e4...","issued_at":1714073880,"status":"authorization_pending","deferred_code":"P9Q4R2S","expires_in":300}
 ~~~
 
 ### Completion or Terminal Error
 
 When deferred processing terminates successfully, the authorization server sends a final event and closes the stream. The form of the `complete` event depends on whether the issued access token is sender-constrained.
 
-**Credential delivery.** When the issued access token is sender-constrained (DPoP-bound or mTLS-bound) and any included refresh token and ID Token meet the requirements stated below, the `complete` event MAY carry the access token response as the `result`:
+**Credential delivery.** When the issued access token is sender-constrained (DPoP-bound or mTLS-bound) and any included refresh token and ID Token meet the requirements stated below, the `complete` event MAY carry the access token response as the `result`. This option is intended for profiles that explicitly accept the successful-write-as-commit semantics in {{confirmation-and-cancellation}}; other profiles SHOULD use preview-only delivery and polling:
 
 ~~~
 event: complete
@@ -123,7 +127,7 @@ data: {"event_id":"f9c1...","issued_at":1714073760,"status":"complete","result":
 
 The `access_token` MUST be sender-constrained. If the originating request established DPoP, the issued access token is bound to the DPoP key thumbprint and `token_type` is `DPoP` per {{RFC9449}}. If the originating request established mTLS client certificate binding, the issued token is bound to the certificate thumbprint per {{RFC8705}}. If a `refresh_token` is included, it MUST be sender-constrained by the same mechanism. If an `id_token` is included, it MUST carry a confirmation-method binding (such as a `cnf` claim) tying it to the client-held key or certificate.
 
-A delivered access token in the `complete` event is authoritative on confirmed receipt (see Confirmation and Cancellation below). The same access token response would be returned by continuation polling for the same deferred processing state until polling-equivalence is broken by cancellation or expiration.
+A delivered access token in the `complete` event is authoritative once the credential-bearing event has been successfully written to the SSE connection (see Confirmation and Cancellation below). The same access token response would be returned by continuation polling for the same deferred processing state until polling-equivalence is broken by cancellation or expiration.
 
 **Preview-only delivery.** When the issued access token is not sender-constrained, the `complete` event MUST omit the access token, refresh token, ID Token, and authorization code, and MUST instead carry only non-authoritative result metadata:
 
@@ -153,16 +157,16 @@ data: {"event_id":"a1b2...","issued_at":1714073760,"error":"access_denied"}
 
 After the `complete` or `error` event, the authorization server closes the SSE connection.
 
-### Confirmation and Cancellation
+### Confirmation and Cancellation {#confirmation-and-cancellation}
 
-When the `complete` event carries credential delivery (`result`), the client confirms receipt by closing the SSE connection cleanly after processing the `complete` event. Clean connection close by the client after the `complete` event is delivery confirmation; an abrupt drop, network failure, or absence of close before a configurable timeout is unconfirmed delivery.
+When the `complete` event carries credential delivery (`result`), the authorization server treats the credentials as committed once the event has been successfully written to the SSE connection. SSE does not provide a reliable end-to-end delivery-confirmation signal across HTTP stacks and intermediaries; therefore this profile does not attempt to distinguish delivered-but-unconfirmed credentials from delivered-and-confirmed credentials after a successful write. This is a weaker confirmation model than an explicit webhook response or a token endpoint polling response. Profiles SHOULD select SSE credential delivery only when that tradeoff is acceptable; otherwise they SHOULD send `result_preview` and require polling for credentials. If the connection fails before the authorization server successfully writes the `complete` event, delivery is unconfirmed and the client obtains the result by polling.
 
-If the deferred processing state is cancelled per the base specification's §Cancellation before delivery is confirmed, the authorization server MUST:
+If the deferred processing state is cancelled per the base specification's §Cancellation before the authorization server successfully writes a credential-bearing `complete` event, the authorization server MUST:
 
 - terminate the SSE connection without further delivery,
-- revoke the delivered access token and refresh token, if any, that were carried in a delivered-but-unconfirmed `complete` event, equivalently to revoking tokens obtained through polling.
+- suppress credential delivery through SSE and rely on the base specification's cancellation outcome for subsequent polling.
 
-Once delivery is confirmed, the delivered credentials are committed and cancellation does not retroactively invalidate them; credentials in the client's possession are revoked only through their own mechanisms.
+Once the credential-bearing `complete` event has been successfully written, the delivered credentials are committed and cancellation does not retroactively invalidate them; credentials in the client's possession are revoked only through their own mechanisms.
 
 When the `complete` event carries `result_preview` only, no credentials have been delivered through SSE; the credentials are obtained through subsequent polling and are subject to the cancellation rules in the base specification's §Cancellation directly.
 
@@ -176,7 +180,7 @@ A client opening an SSE connection MUST authenticate using the same credentials 
 
 The client MUST treat `state` events as advisory hints; they MAY be used to update local UI or scheduling decisions but MUST NOT be used as granted authorization. The client MUST reject any event with an `issued_at` value outside the client's configured freshness window and MUST detect replay of an `event_id` already accepted for the same deferred processing state.
 
-When the `complete` event carries a `result` containing a sender-constrained access token response, the client MAY treat the response as authoritative on receipt. The client MUST verify that the issued access token is sender-constrained as expected (for example, bound to the DPoP key the client used on the originating request); if the credential is not bound to the client's key or certificate as expected, the client MUST reject the delivery and SHOULD obtain the result by polling instead. The client confirms receipt by closing the SSE connection cleanly after processing the `complete` event.
+When the `complete` event carries a `result` containing a sender-constrained access token response, the client MAY treat the response as authoritative on receipt. The client MUST verify that the issued access token is sender-constrained as expected (for example, bound to the DPoP key the client used on the originating request); if the credential is not bound to the client's key or certificate as expected, the client MUST reject the delivery and SHOULD obtain the result by polling instead.
 
 When the `complete` event carries `result_preview` instead, the client MUST NOT treat the preview as an access token response and MUST poll the token endpoint to obtain the issued credentials.
 
@@ -184,13 +188,13 @@ If connection establishment fails before the authorization server consumes the `
 
 ## Authorization Server Behavior
 
-The authorization server MAY make the SSE streaming endpoint available for deferred processing states whose clients signaled `stream`. The authorization server MUST NOT depend on successful streaming; deferred processing state remains observable through continuation requests until completion is confirmed or the state ends.
+The authorization server MAY make the SSE streaming endpoint available for deferred processing states whose clients signaled `stream`, provided deferred processing for the request is also authorized by `completion_mode=deferred`, client metadata, or an explicit profile rule. The authorization server MUST NOT depend on successful streaming; deferred processing state remains observable through continuation requests until a credential-bearing `complete` event is successfully written or the state ends.
 
 The authorization server SHOULD apply per-state and per-client limits on simultaneous SSE connections (a deferred processing state SHOULD support at most one active SSE connection at a time).
 
 The authorization server MUST validate sender-constraining and client authentication on connection establishment. If the connection is established and the client's binding context changes (for example, DPoP nonce rotation requires a fresh proof), the authorization server MAY close the stream and require the client to poll for a new `deferred_code_stream_handle` before reestablishing.
 
-When the `complete` event carries credential delivery, the authorization server MUST track the confirmation state of the delivery and MUST handle the cancellation race as defined above: revoke delivered-but-unconfirmed credentials when cancellation occurs, treat confirmed credentials as committed.
+When the `complete` event carries credential delivery, the authorization server MUST handle the cancellation race as defined above: suppress credential delivery when cancellation is accepted before a successful write of the `complete` event, and treat credentials as committed after a successful write.
 
 ## Security Considerations
 
@@ -199,17 +203,17 @@ When the `complete` event carries credential delivery, the authorization server 
 - The `complete` event, when carrying a sender-constrained access token response, is sensitive metadata even though the credential is useless without the client's bound key or certificate. TLS protects the value in transit. Authorization servers SHOULD minimize server-side logging of SSE payloads and SHOULD consider end-to-end encryption (for example, JWE) for high-sensitivity deployments.
 - SSE events MUST NOT contain bearer access tokens, bearer refresh tokens, authorization codes, assertions, or ID Tokens that lack a confirmation-method binding. The authorization server MUST verify that the credentials selected for delivery satisfy these requirements before sending the `complete` event with `result`. If the requirements are not met, the authorization server MUST use preview-only delivery instead.
 - Replay: each SSE event MUST include `event_id` and `issued_at` for client-side replay detection. The deferred_code rotation rules from the base spec apply. If a deferred_code is rotated mid-stream, the SSE event MUST carry the new value and the client MUST discard the previous value. The sender-constraining proof at the resource server protects a delivered credential against replay by parties that do not hold the bound key.
-- Cancellation race: delivered-but-unconfirmed credentials (where the SSE connection has not been cleanly closed by the client after the `complete` event) MUST be revoked if cancellation is received before confirmation. Failure to enforce this leaves a window in which a cancelled request can still produce usable credentials.
+- Cancellation race: because SSE lacks reliable end-to-end delivery confirmation, this profile treats a successfully written credential-bearing `complete` event as committed. Cancellation accepted before that write MUST suppress credential delivery; cancellation after that write does not retroactively invalidate credentials and must use normal credential revocation mechanisms.
 - All other security considerations of the base spec apply unchanged.
 
 ## IANA Considerations
 
 This proposal would register:
 
-**OAuth Grant Mode Values:**
+**OAuth Completion Mode Values:**
 | Value | Description |
 |---|---|
-| `stream` | Client accepts SSE streaming of deferred state transitions and completion indications |
+| `stream` | Client accepts SSE streaming of deferred state transitions and the final completion event |
 
 **OAuth Authorization Server Metadata:**
 | Name | Description |
@@ -226,14 +230,14 @@ This proposal would register:
 
 This proposal exercises the following base-spec extension surfaces:
 
-1. **Grant Mode value registration.** `stream` is added via the Specification Required policy.
+1. **Completion Mode value registration.** `stream` is added via the Specification Required policy.
 2. **AS metadata.** Two new metadata fields registered.
 3. **State vocabulary reuse.** The SSE event payloads reuse the substrate's status vocabulary (`authorization_pending`, `interaction_required`, `slow_down`) and parameter names without modification.
 4. **Profile-defined response parameter.** `deferred_code_stream_handle` carries a short-lived stream-establishment handle without making the `deferred_code` itself part of the streaming endpoint URL.
 5. **Advisory delivery channel carrying sender-constrained credentials.** The `complete` event MAY carry an access token response when the credentials are sender-constrained, exercising the credential-delivery scope of §Profile-Defined Advisory Delivery Channels.
 6. **Polling-equivalence and polling-availability preserved.** Polling at the token endpoint remains available as an alternative authoritative completion path and returns the same credentials.
 
-**Verdict: no base-spec amendment required.** The base spec's generic advisory-delivery hook in §Profile-Defined Advisory Delivery Channels permits this proposal as a concrete instance, including the use of a new authorization-server endpoint and credential delivery for sender-constrained tokens. The hook's requirements (authentication, freshness, cancellation handling, polling-equivalence, substrate-invariant preservation, profile-defined endpoints don't host continuation processing, and the bearer-credential exclusions) are satisfied by this proposal's specific design.
+**Verdict: no base-spec amendment required.** The base spec's generic advisory-delivery hook in §Profile-Defined Advisory Delivery Channels permits this proposal as a concrete instance, including the use of a new authorization-server endpoint and credential delivery for sender-constrained tokens. The hook's requirements (authentication, freshness, cancellation handling, polling-equivalence, substrate-invariant preservation, profile-defined endpoints don't host continuation processing, and the bearer-credential exclusions) are satisfied by this proposal's specific design. The proposal also shows the limit of the hook: SSE is a strong fit for state streaming and preview delivery, while direct credential delivery depends on successful-write-as-commit semantics that are weaker than explicit acknowledgement.
 
 ## Relationship to the Notification Mechanism
 

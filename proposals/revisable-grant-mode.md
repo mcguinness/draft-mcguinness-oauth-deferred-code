@@ -16,18 +16,21 @@ This proposal is intentionally narrow. It defines the protocol machinery require
 
 The proposal is also not a general request-editing facility. Revisions can only reduce or clarify the originating request according to profile-defined comparison rules. The deferred code grant type remains unchanged, and continuation requests never carry revised authorization parameters.
 
-## Relation to the Base Specification
+## Relation to the Base Specification and Upstream Profiles
 
-This proposal uses the following extension surfaces defined by the base spec:
+This proposal depends on two upstream specifications:
+
+- The OAuth Deferred Request Processing specification ([draft-mcguinness-oauth-deferred-code-processing](../draft-mcguinness-oauth-deferred-code-processing.md)) for the deferred-code continuation mechanism, deferred authorization responses, and `completion_mode`.
+- The OAuth Interim Partial Completion and Grant Mode Parameter specification ([draft-mcguinness-oauth-interim-grant-mode](../draft-mcguinness-oauth-interim-grant-mode.md)) for the `grant_mode` request parameter and the OAuth Grant Mode Values registry in which this proposal registers `revisable`. (Following the RFC 9396 model, the parameter framework was placed in the first profile that needed it; subsequent profiles register their values in the same registry.)
 
 | Extension surface | Use |
 |---|---|
-| OAuth Grant Mode Values Registry (Specification Required policy) | Registers `revisable` |
-| §Higher-Layer Extension Points: additional externally-observable states | Defines the Revision Required state |
-| §Higher-Layer Extension Points: profile-defined response parameters for out-of-band mechanisms | Defines `clarification_handle`, `rejected_scope`, and `rejected_authorization_details` response parameters |
-| §Continuation Request: profile-defined mechanisms for updating preserved parameters | Defines the PAR-based revision submission mechanism, subject to the base spec's narrowing-only constraint |
+| OAuth Grant Mode Values Registry (established by draft-mcguinness-oauth-interim-grant-mode) | Registers `revisable` |
+| §Higher-Layer Extension Points (base spec): additional externally-observable states | Defines the Revision Required state |
+| §Higher-Layer Extension Points (base spec): profile-defined response parameters for out-of-band mechanisms | Defines `clarification_handle`, `rejected_scope`, and `rejected_authorization_details` response parameters |
+| §Continuation Request (base spec): profile-defined mechanisms for updating preserved parameters | Defines the PAR-based revision submission mechanism, subject to the base spec's narrowing-only constraint |
 
-This proposal also touches the following IANA registries outside the base spec's own:
+This proposal also touches the following IANA registries outside the base spec and the interim-grant-mode specification:
 
 - OAuth Extensions Error Registry: registers `revision_required`
 - OAuth Parameters Registry: registers `clarification_handle`, `rejected_scope`, and `rejected_authorization_details`
@@ -40,17 +43,17 @@ The base specification's §Continuation Request includes a generic carve-out per
 **revisable**
 : Client accepts a revisable grant. The authorization server MAY return a Revision Required response inviting the client to push a narrowed revision via PAR, in addition to or in place of denying the originating request outright. Revision Required is itself a deferred-processing condition and is observed through token endpoint responses carrying a `deferred_code`.
 
-## Relationship to `grant_mode=deferred`
+## Relationship to `completion_mode=deferred`
 
-The `revisable` value authorizes only the Revision Required state and the clarification handshake defined by this proposal. It does not by itself indicate that the client accepts ordinary asynchronous deferral for reasons unrelated to revision, such as policy evaluation or external approval.
+The `revisable` value is a `grant_mode` value (a request-handling mode) registered by this proposal. It authorizes only the Revision Required state and the clarification handshake defined here. It does not by itself indicate that the client accepts deferred completion for reasons unrelated to revision, such as policy evaluation or external approval. Deferred completion is signaled separately through the substrate's `completion_mode` parameter.
 
-A client that accepts both ordinary deferral and revisable grants SHOULD send both values:
+A client that accepts both ordinary deferred completion and revisable handling SHOULD send both signals on the same request:
 
 ~~~ text
-grant_mode=deferred revisable
+completion_mode=deferred grant_mode=revisable
 ~~~
 
-A request containing only `grant_mode=revisable` allows the authorization server to return `revision_required` when the request cannot be granted as stated but could be granted after narrowing. If the same request requires ordinary asynchronous processing unrelated to revision, the authorization server MUST NOT infer support for that outcome from `revisable` alone.
+A request containing only `grant_mode=revisable` allows the authorization server to return `revision_required` when the request cannot be granted as stated but could be granted after narrowing. If the same request requires ordinary deferred completion unrelated to revision, the authorization server MUST NOT infer support for that outcome from `revisable` alone.
 
 ## Defined State: Revision Required
 
@@ -143,7 +146,8 @@ GET /authorize?
   state=xyz&
   code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&
   code_challenge_method=S256&
-  grant_mode=deferred%20revisable HTTP/1.1
+  completion_mode=deferred&
+  grant_mode=revisable HTTP/1.1
 Host: as.example.com
 ~~~
 
@@ -296,7 +300,7 @@ If the authorization server determines that no acceptable narrowed revision rema
 
 This proposal would register the following:
 
-**OAuth Grant Mode Values registry** (established by the base spec):
+**OAuth Grant Mode Values registry** (established by [draft-mcguinness-oauth-interim-grant-mode](../draft-mcguinness-oauth-interim-grant-mode.md)):
 
 | Value | Description | Specification |
 |---|---|---|
@@ -320,7 +324,7 @@ This proposal would register the following:
 
 This proposal exercises the base specification's extension surfaces without requiring base-spec amendment:
 
-1. **Grant Mode value registration.** `revisable` is added via the Specification Required policy already defined by the base spec.
+1. **Grant Mode value registration.** `revisable` is added via the Specification Required policy defined by [draft-mcguinness-oauth-interim-grant-mode](../draft-mcguinness-oauth-interim-grant-mode.md), which establishes the `grant_mode` parameter and the OAuth Grant Mode Values registry that this proposal depends on.
 2. **Profile-defined state.** Revision Required is added via the §Higher-Layer Extension Points hook for "additional externally-observable states extending the abstract state lifecycle." Mapped to a token endpoint error code (`revision_required`) per the base spec's pattern for distinguishing profile-defined states.
 3. **Profile-defined response parameters.** `clarification_handle`, `rejected_scope`, and `rejected_authorization_details` are added via the §Higher-Layer Extension Points hook for "additional response parameters carrying handles or references used by profile-defined out-of-band mechanisms."
 4. **Profile-defined parameter-update mechanism.** PAR-based revision submission is permitted by the base spec's §Continuation Request carve-out for "mechanisms outside the deferred code grant type itself for updating the parameters preserved in the deferred processing state," subject to the narrowing-only constraint. This proposal supplies the concrete mechanism (PAR) and the binding (`clarification_handle`) layered on top of the generic carve-out.
