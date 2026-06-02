@@ -248,8 +248,6 @@ At minimum, the authorization server MUST associate deferred processing state wi
 
 For authorization endpoint originating requests, the deferred processing state MUST additionally preserve the validated `redirect_uri`, the requested response type, the requested `scope`, any `code_challenge` and `code_challenge_method` values, and any other authorization request parameters required to complete processing.
 
-The authorization server SHOULD also associate deferred processing state with requested resources, requested scopes, grant-specific input artifacts, policy evaluation inputs, interaction status, and audit information needed for security monitoring.
-
 Deferred processing state MUST NOT be used to expand authorization beyond the originating request. Any authorization, approval, authentication, or policy result obtained during deferred processing can only constrain or complete the originating request.
 
 ## State Lifecycle
@@ -393,7 +391,7 @@ The authorization server MUST make continuation responses depend on the deferred
 
 The authorization server MAY complete deferred processing independently of client polling. For example, external policy evaluation, administrator approval, attestation validation, or user interaction can update the deferred processing state before the next continuation request.
 
-The authorization server SHOULD avoid exposing sensitive policy decisions through differences in whether a request is deferred, denied immediately, or left pending; see {{oracle-resistance}}.
+Sensitive policy decisions exposed through observable deferral, immediate denial, or pending behavior are addressed in {{oracle-resistance}}.
 
 ## Higher-Layer Extension Points
 
@@ -1038,9 +1036,7 @@ The client SHOULD respond with `200 OK` or `204 No Content` and MUST NOT include
 
 A client that receives a notification MUST validate the bearer credential in the `Authorization` header against the most recent `notification_token` issued for the deferred code identified in the notification body. If the credential is missing, malformed, or does not match a known notification token, the client MUST reject the notification.
 
-After validating a notification, the client SHOULD submit a continuation request to obtain the current processing state. The notification itself does not convey result data.
-
-A client MUST NOT rely on receiving a notification. Polling at the interval indicated by the authorization server remains required when no notification has been received.
+The notification conveys only that the deferred processing state has changed; the client obtains the current processing state by submitting a continuation request. A client MUST NOT rely on receiving a notification; polling at the interval indicated by the authorization server remains required when no notification has been received.
 
 ## Authorization Server Behavior
 
@@ -1234,7 +1230,7 @@ The entropy requirement applies to any value that can be used as a bearer contin
 
 The authorization server MUST bind the deferred code to the originating request and associated security context.
 
-The binding MUST include the client identity when a client identity is present. It MUST include sender-constraining or proof-of-possession material used by the originating request, including DPoP public key thumbprints {{RFC9449}} or mutual-TLS certificate bindings {{RFC8705}}. It SHOULD include requested resources, requested scopes, grant-type-specific input artifacts, and any other values that affect token issuance.
+The binding MUST include the client identity when a client identity is present, and MUST include sender-constraining or proof-of-possession material used by the originating request (DPoP public key thumbprints per {{RFC9449}} or mutual-TLS certificate bindings per {{RFC8705}}).
 
 ## Proof-of-Possession Continuity {#proof-of-possession-continuity}
 
@@ -1285,9 +1281,7 @@ Authorization servers MUST validate the `redirect_uri` of the originating author
 
 The `interaction_uri` returned in a deferred authorization response is subject to the same protections as an `interaction_uri` returned in a deferred processing response.
 
-Authorization servers SHOULD apply more conservative lifetime defaults to deferred codes returned through the authorization endpoint redirect than to deferred codes returned only at the token endpoint, because the redirect channel exposes the value to browser history, server logs, and referer headers that the token endpoint does not.
-
-Authorization servers SHOULD treat deferred codes returned through the authorization endpoint redirect as one-time-use even at short lifetimes, rotating the value on the first continuation response that does not complete the request. The redirect channel exposes the initially returned value to multiple log surfaces; the value rotated on first continuation arrives only at the token endpoint and is not subject to the same disclosure surface.
+Authorization servers SHOULD apply more conservative lifetime defaults to deferred codes returned through the authorization endpoint redirect than to those returned only at the token endpoint, because the redirect channel exposes the value to browser history, server logs, and referer headers that the token endpoint does not. Per §Deferred Code Rotation and Replay, the redirect-delivered value MUST be rotated on the first continuation that does not complete the request unless it is sender-constrained; the rotated value arrives only at the token endpoint and is not subject to the same disclosure surface.
 
 When a deferred code returned through the authorization endpoint redirect has a lifetime measured in hours or days under the rules of {{lifetime-considerations}}, the authorization server MUST sender-constrain the deferred code through DPoP {{RFC9449}}, mutual-TLS client certificate binding {{RFC8705}}, or an equivalent mechanism. PKCE {{RFC7636}}, while required as a continuation binding for public clients by {{authorization-endpoint-pkce}}, is not by itself sufficient for long-lived front-channel deferred codes: PKCE binds the client instance that originated the request, but a stolen browser session retaining access to the original client instance can complete continuation. Sender-constraining the deferred code itself defends against this case.
 
@@ -1305,15 +1299,13 @@ Sender-constraining material applied to the originating request MUST also apply 
 
 When continuation completes successfully and the profile defines replacement semantics, the authorization server MUST invalidate the partial artifact no later than when the upgrade response is returned. Failure to invalidate creates a window in which both the partial and upgraded artifacts authorize concurrent access, weakening the rotation and replay guarantees of the originating grant type.
 
-Authorization servers SHOULD record partial completion events with sufficient correlation to permit post-hoc audit of what was issued partially, what upgrade outcome was reached, and whether artifact invalidation occurred.
-
 ## Interaction URI Protection
 
 Interaction URIs MUST use HTTPS.
 
 When the interaction at the `interaction_uri` requires an authenticated actor, authorization servers SHOULD bind the interaction state to that actor's authenticated session.
 
-Interaction URIs can become bearer references to sensitive continuation state. Authorization servers MUST NOT place sensitive information in URI query components. Authorization servers SHOULD use referrer-policy, cache-control, and logging practices that reduce disclosure of interaction URIs.
+Interaction URIs can become bearer references to sensitive continuation state. Authorization servers MUST NOT place sensitive information in URI query components.
 
 Clients MUST NOT assume that accessing an interaction URI completes authorization or authentication. Completion semantics are defined by the authorization server or by a higher-layer profile.
 
@@ -1327,11 +1319,7 @@ When a deferred code has been rotated, continuation requests presenting a previo
 
 ## Continuation Request Rate Limiting
 
-Authorization servers SHOULD rate limit continuation requests.
-
-Clients SHOULD respect the `interval` parameter.
-
-Authorization servers MAY increase the `interval` value when clients poll too frequently.
+Authorization servers SHOULD rate limit continuation requests and MAY increase the `interval` value when clients poll too frequently. Client `interval` handling is defined in {{client-behavior}}.
 
 ## Deferred Processing Lifetime {#lifetime-considerations}
 
@@ -1384,7 +1372,7 @@ The notification endpoint is publicly reachable and receives POST requests from 
 
 The `notification_token` is a bearer credential. Authorization servers MUST issue notification tokens with sufficient entropy to resist guessing and MUST transmit them only over TLS-protected responses to the client.
 
-Authorization servers SHOULD limit notification token lifetime to no longer than the lifetime of the associated deferred processing state and SHOULD invalidate notification tokens promptly when the deferred processing state ends.
+Authorization servers MUST NOT extend notification token lifetime beyond the lifetime of the associated deferred processing state.
 
 Authorization servers MUST NOT reuse a `notification_token` value across distinct deferred processing states.
 
@@ -1398,9 +1386,9 @@ Authorization servers SHOULD avoid using notification timing or delivery pattern
 
 ## Privacy Considerations
 
-Deferred processing can retain information from the originating request, including subject identifiers, requested resources, policy evaluation inputs, attestation evidence, or transaction details. Authorization servers SHOULD minimize retained state, protect it at rest, and delete it when processing completes or expires.
+Deferred processing can retain information from the originating request, including subject identifiers, requested resources, policy evaluation inputs, attestation evidence, or transaction details. Authorization servers handle this retained state according to the privacy and data-minimization requirements applicable to the deployment.
 
-Interaction URIs and deferred codes SHOULD NOT reveal user identifiers, client identifiers, resource identifiers, transaction details, or policy decisions to parties that can observe browser history, logs, referrer headers, or network metadata.
+Interaction URIs and deferred codes MUST NOT reveal user identifiers, client identifiers, resource identifiers, transaction details, or policy decisions to parties that can observe browser history, logs, referrer headers, or network metadata, consistent with the opacity and information-leakage requirements stated above.
 
 # IANA Considerations {#iana-considerations}
 
@@ -1805,7 +1793,7 @@ No authorization code was issued at any point; the deferred code carried continu
 
 # Profile Author Checklist
 
-A higher-layer profile of this specification SHOULD answer the following questions to demonstrate fit with the substrate's extension model. The checklist is intended as guidance for profile authors; it does not impose normative requirements beyond those already stated in the body of this specification.
+The following questions are intended as guidance for higher-layer profile authors to demonstrate fit with the substrate's extension model. The checklist does not impose normative requirements beyond those already stated in the body of this specification; the verbs used below are descriptive, not normative.
 
 1. **Per-request opt-in signal.** Does the profile introduce a new mode the client must opt into on a per-request basis? If the mode is a *completion mode* (how the request's result reaches the client), register a value in the "OAuth Completion Mode Values" registry established by this specification. If the mode is a *shape or handling mode* (what the produced grant looks like, or how the originating request is handled), register the value in a registry established outside this specification: for example, in the OAuth Grant Mode Values registry established by {{INTERIM-GRANT-MODE}}, or in a registry the profile establishes itself by bundling parameter mechanics with its first value (the RFC 9396 model). Specify how the new value interacts with `deferred` and any other registered values.
 
@@ -1819,11 +1807,11 @@ A higher-layer profile of this specification SHOULD answer the following questio
 
 6. **Client capability.** Does the profile require client opt-in beyond the substrate-level `deferred_code_processing_supported` metadata? If so, define profile-specific client metadata and specify its interaction with the substrate-level capability flag.
 
-7. **Authorization server metadata.** Profiles SHOULD register an AS metadata flag in the "OAuth Authorization Server Metadata" registry so clients can discover support for the profile.
+7. **Authorization server metadata.** Profiles typically register an AS metadata flag in the "OAuth Authorization Server Metadata" registry so clients can discover support for the profile.
 
-8. **Security considerations.** Profile authors SHOULD document security considerations specific to their profile, including any new attack surface introduced by profile-defined mechanisms, deferred-code or handle lifetime considerations beyond the base specification's guidance, and any additional sender-constraining or auditing requirements.
+8. **Security considerations.** Profile authors document security considerations specific to their profile, including any new attack surface introduced by profile-defined mechanisms, deferred-code or handle lifetime considerations beyond the base specification's guidance, and any additional sender-constraining or auditing requirements.
 
-9. **Composition with other profiles.** If multiple profiles can apply to the same request, the profile SHOULD specify precedence and composition rules, particularly for opt-in signal values present together and response parameters appearing together.
+9. **Composition with other profiles.** If multiple profiles can apply to the same request, the profile specifies precedence and composition rules, particularly for opt-in signal values present together and response parameters appearing together.
 
 Worked examples of profile authorship are available in two places. The companion specification {{INTERIM-GRANT-MODE}} demonstrates the RFC 9396 model of bundling a parameter framework (the `grant_mode` parameter and its registry) with its first registered value (`interim`), illustrating how a profile that introduces a new request parameter mechanism can serve as the publication vehicle for that mechanism. The proposals/ directory in this specification's repository contains additional worked examples ranging from simple single-value profiles (a new `completion_mode` value layered on the substrate's advisory delivery hook) to complex profiles (a new externally-observable state with profile-defined response parameters and a profile-defined parameter-update mechanism layered on the substrate's generic carve-out).
 
