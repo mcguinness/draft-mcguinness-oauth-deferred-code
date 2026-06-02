@@ -3,9 +3,9 @@
 
 
 Web Authorization Protocol                                 K. McGuinness
-Internet-Draft                                               1 June 2026
+Internet-Draft                                               2 June 2026
 Intended status: Standards Track                                        
-Expires: 3 December 2026
+Expires: 4 December 2026
 
 
      OAuth 2.0 Interim Partial Completion and Grant Mode Parameter
@@ -65,7 +65,7 @@ Status of This Memo
    time.  It is inappropriate to use Internet-Drafts as reference
    material or to cite them other than as "work in progress."
 
-   This Internet-Draft will expire on 3 December 2026.
+   This Internet-Draft will expire on 4 December 2026.
 
 Copyright Notice
 

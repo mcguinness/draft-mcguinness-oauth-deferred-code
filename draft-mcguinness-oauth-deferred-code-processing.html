@@ -1055,7 +1055,7 @@ svg {
 </tr></thead>
 <tfoot><tr>
 <td class="left">McGuinness</td>
-<td class="center">Expires 3 December 2026</td>
+<td class="center">Expires 4 December 2026</td>
 <td class="right">[Page]</td>
 </tr></tfoot>
 </table>
@@ -1068,12 +1068,12 @@ svg {
 <dd class="internet-draft">draft-mcguinness-oauth-deferred-code-processing-latest</dd>
 <dt class="label-published">Published:</dt>
 <dd class="published">
-<time datetime="2026-06-01" class="published">1 June 2026</time>
+<time datetime="2026-06-02" class="published">2 June 2026</time>
     </dd>
 <dt class="label-intended-status">Intended Status:</dt>
 <dd class="intended-status">Standards Track</dd>
 <dt class="label-expires">Expires:</dt>
-<dd class="expires"><time datetime="2026-12-03">3 December 2026</time></dd>
+<dd class="expires"><time datetime="2026-12-04">4 December 2026</time></dd>
 <dt class="label-authors">Author:</dt>
 <dd class="authors">
 <div class="author">
@@ -1120,7 +1120,7 @@ svg {
         time. It is inappropriate to use Internet-Drafts as reference
         material or to cite them other than as "work in progress."<a href="#section-boilerplate.1-3" class="pilcrow">¶</a></p>
 <p id="section-boilerplate.1-4">
-        This Internet-Draft will expire on 3 December 2026.<a href="#section-boilerplate.1-4" class="pilcrow">¶</a></p>
+        This Internet-Draft will expire on 4 December 2026.<a href="#section-boilerplate.1-4" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="copyright">
@@ -1960,8 +1960,7 @@ appear in all capitals, as shown here.<a href="#section-2-1" class="pilcrow">¶<
 </li>
         </ul>
 <p id="section-4.5-4">For authorization endpoint originating requests, the deferred processing state <span class="bcp14">MUST</span> additionally preserve the validated <code>redirect_uri</code>, the requested response type, the requested <code>scope</code>, any <code>code_challenge</code> and <code>code_challenge_method</code> values, and any other authorization request parameters required to complete processing.<a href="#section-4.5-4" class="pilcrow">¶</a></p>
-<p id="section-4.5-5">The authorization server <span class="bcp14">SHOULD</span> also associate deferred processing state with requested resources, requested scopes, grant-specific input artifacts, policy evaluation inputs, interaction status, and audit information needed for security monitoring.<a href="#section-4.5-5" class="pilcrow">¶</a></p>
-<p id="section-4.5-6">Deferred processing state <span class="bcp14">MUST NOT</span> be used to expand authorization beyond the originating request. Any authorization, approval, authentication, or policy result obtained during deferred processing can only constrain or complete the originating request.<a href="#section-4.5-6" class="pilcrow">¶</a></p>
+<p id="section-4.5-5">Deferred processing state <span class="bcp14">MUST NOT</span> be used to expand authorization beyond the originating request. Any authorization, approval, authentication, or policy result obtained during deferred processing can only constrain or complete the originating request.<a href="#section-4.5-5" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="state-lifecycle">
@@ -2194,7 +2193,7 @@ appear in all capitals, as shown here.<a href="#section-2-1" class="pilcrow">¶<
 <p id="section-6.3-1">The authorization server is responsible for deciding whether an originating request is eligible for deferred processing, whether that request is a token request or an authorization request. The authorization server <span class="bcp14">MAY</span> apply local policy, grant-type-specific policy, response-type-specific policy, client policy, client capability declared in client metadata (see <a href="#client-capability" class="auto internal xref">Section 6.2</a>), resource policy, or higher-layer profile requirements when making that decision.<a href="#section-6.3-1" class="pilcrow">¶</a></p>
 <p id="section-6.3-2">The authorization server <span class="bcp14">MUST</span> make continuation responses depend on the deferred processing state associated with the deferred code, not on new grant parameters supplied by the client.<a href="#section-6.3-2" class="pilcrow">¶</a></p>
 <p id="section-6.3-3">The authorization server <span class="bcp14">MAY</span> complete deferred processing independently of client polling. For example, external policy evaluation, administrator approval, attestation validation, or user interaction can update the deferred processing state before the next continuation request.<a href="#section-6.3-3" class="pilcrow">¶</a></p>
-<p id="section-6.3-4">The authorization server <span class="bcp14">SHOULD</span> avoid exposing sensitive policy decisions through differences in whether a request is deferred, denied immediately, or left pending; see <a href="#oracle-resistance" class="auto internal xref">Section 18.13</a>.<a href="#section-6.3-4" class="pilcrow">¶</a></p>
+<p id="section-6.3-4">Sensitive policy decisions exposed through observable deferral, immediate denial, or pending behavior are addressed in <a href="#oracle-resistance" class="auto internal xref">Section 18.13</a>.<a href="#section-6.3-4" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="higher-layer-extension-points">
@@ -3149,8 +3148,7 @@ Content-Type: application/json
 <a href="#section-15.4" class="section-number selfRef">15.4. </a><a href="#name-client-behavior-2" class="section-name selfRef">Client Behavior</a>
         </h3>
 <p id="section-15.4-1">A client that receives a notification <span class="bcp14">MUST</span> validate the bearer credential in the <code>Authorization</code> header against the most recent <code>notification_token</code> issued for the deferred code identified in the notification body. If the credential is missing, malformed, or does not match a known notification token, the client <span class="bcp14">MUST</span> reject the notification.<a href="#section-15.4-1" class="pilcrow">¶</a></p>
-<p id="section-15.4-2">After validating a notification, the client <span class="bcp14">SHOULD</span> submit a continuation request to obtain the current processing state. The notification itself does not convey result data.<a href="#section-15.4-2" class="pilcrow">¶</a></p>
-<p id="section-15.4-3">A client <span class="bcp14">MUST NOT</span> rely on receiving a notification. Polling at the interval indicated by the authorization server remains required when no notification has been received.<a href="#section-15.4-3" class="pilcrow">¶</a></p>
+<p id="section-15.4-2">The notification conveys only that the deferred processing state has changed; the client obtains the current processing state by submitting a continuation request. A client <span class="bcp14">MUST NOT</span> rely on receiving a notification; polling at the interval indicated by the authorization server remains required when no notification has been received.<a href="#section-15.4-2" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="authorization-server-behavior-1">
@@ -3400,7 +3398,7 @@ assertion=eyJhbGciOi...
 <a href="#section-18.2" class="section-number selfRef">18.2. </a><a href="#name-deferred-code-binding" class="section-name selfRef">Deferred Code Binding</a>
         </h3>
 <p id="section-18.2-1">The authorization server <span class="bcp14">MUST</span> bind the deferred code to the originating request and associated security context.<a href="#section-18.2-1" class="pilcrow">¶</a></p>
-<p id="section-18.2-2">The binding <span class="bcp14">MUST</span> include the client identity when a client identity is present. It <span class="bcp14">MUST</span> include sender-constraining or proof-of-possession material used by the originating request, including DPoP public key thumbprints <span>[<a href="#RFC9449" class="cite xref">RFC9449</a>]</span> or mutual-TLS certificate bindings <span>[<a href="#RFC8705" class="cite xref">RFC8705</a>]</span>. It <span class="bcp14">SHOULD</span> include requested resources, requested scopes, grant-type-specific input artifacts, and any other values that affect token issuance.<a href="#section-18.2-2" class="pilcrow">¶</a></p>
+<p id="section-18.2-2">The binding <span class="bcp14">MUST</span> include the client identity when a client identity is present, and <span class="bcp14">MUST</span> include sender-constraining or proof-of-possession material used by the originating request (DPoP public key thumbprints per <span>[<a href="#RFC9449" class="cite xref">RFC9449</a>]</span> or mutual-TLS certificate bindings per <span>[<a href="#RFC8705" class="cite xref">RFC8705</a>]</span>).<a href="#section-18.2-2" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="proof-of-possession-continuity">
@@ -3461,10 +3459,9 @@ assertion=eyJhbGciOi...
 <p id="section-18.6-3">When PKCE was used on the originating authorization request, the <code>code_verifier</code> presented on the first continuation request serves as the primary continuation binding for the originating client instance. When PKCE was not used, the authorization server <span class="bcp14">MUST</span> require sender-constraining or session-binding on continuation requests sufficient to prevent another client instance that obtains the deferred code from completing the continuation, consistent with the public-client continuation binding requirements in <a href="#deferred-processing-responses" class="auto internal xref">Section 10.1</a>.<a href="#section-18.6-3" class="pilcrow">¶</a></p>
 <p id="section-18.6-4">Authorization servers <span class="bcp14">MUST</span> validate the <code>redirect_uri</code> of the originating authorization request and complete any other authorization request validation that does not depend on completion of the deferred work before issuing the deferred authorization response. Authorization servers <span class="bcp14">MUST NOT</span> use the deferred authorization response mechanism to defer reporting of an authorization request that is known to be unauthorized or malformed.<a href="#section-18.6-4" class="pilcrow">¶</a></p>
 <p id="section-18.6-5">The <code>interaction_uri</code> returned in a deferred authorization response is subject to the same protections as an <code>interaction_uri</code> returned in a deferred processing response.<a href="#section-18.6-5" class="pilcrow">¶</a></p>
-<p id="section-18.6-6">Authorization servers <span class="bcp14">SHOULD</span> apply more conservative lifetime defaults to deferred codes returned through the authorization endpoint redirect than to deferred codes returned only at the token endpoint, because the redirect channel exposes the value to browser history, server logs, and referer headers that the token endpoint does not.<a href="#section-18.6-6" class="pilcrow">¶</a></p>
-<p id="section-18.6-7">Authorization servers <span class="bcp14">SHOULD</span> treat deferred codes returned through the authorization endpoint redirect as one-time-use even at short lifetimes, rotating the value on the first continuation response that does not complete the request. The redirect channel exposes the initially returned value to multiple log surfaces; the value rotated on first continuation arrives only at the token endpoint and is not subject to the same disclosure surface.<a href="#section-18.6-7" class="pilcrow">¶</a></p>
-<p id="section-18.6-8">When a deferred code returned through the authorization endpoint redirect has a lifetime measured in hours or days under the rules of <a href="#lifetime-considerations" class="auto internal xref">Section 18.11</a>, the authorization server <span class="bcp14">MUST</span> sender-constrain the deferred code through DPoP <span>[<a href="#RFC9449" class="cite xref">RFC9449</a>]</span>, mutual-TLS client certificate binding <span>[<a href="#RFC8705" class="cite xref">RFC8705</a>]</span>, or an equivalent mechanism. PKCE <span>[<a href="#RFC7636" class="cite xref">RFC7636</a>]</span>, while required as a continuation binding for public clients by <a href="#authorization-endpoint-pkce" class="auto internal xref">Section 9.3</a>, is not by itself sufficient for long-lived front-channel deferred codes: PKCE binds the client instance that originated the request, but a stolen browser session retaining access to the original client instance can complete continuation. Sender-constraining the deferred code itself defends against this case.<a href="#section-18.6-8" class="pilcrow">¶</a></p>
-<p id="section-18.6-9">Authorization servers <span class="bcp14">SHOULD</span> bind deferred processing state created from an authorization endpoint originating request to enough device or session context to detect when continuation requests arrive from a context inconsistent with the originating request. Detection of inconsistent continuation context is not by itself grounds for rejection (legitimate cross-device flows can produce inconsistent context), but <span class="bcp14">SHOULD</span> be reported as a security event for monitoring and <span class="bcp14">MAY</span> trigger additional risk-based controls defined by local policy or higher-layer profiles.<a href="#section-18.6-9" class="pilcrow">¶</a></p>
+<p id="section-18.6-6">Authorization servers <span class="bcp14">SHOULD</span> apply more conservative lifetime defaults to deferred codes returned through the authorization endpoint redirect than to those returned only at the token endpoint, because the redirect channel exposes the value to browser history, server logs, and referer headers that the token endpoint does not. Per §Deferred Code Rotation and Replay, the redirect-delivered value <span class="bcp14">MUST</span> be rotated on the first continuation that does not complete the request unless it is sender-constrained; the rotated value arrives only at the token endpoint and is not subject to the same disclosure surface.<a href="#section-18.6-6" class="pilcrow">¶</a></p>
+<p id="section-18.6-7">When a deferred code returned through the authorization endpoint redirect has a lifetime measured in hours or days under the rules of <a href="#lifetime-considerations" class="auto internal xref">Section 18.11</a>, the authorization server <span class="bcp14">MUST</span> sender-constrain the deferred code through DPoP <span>[<a href="#RFC9449" class="cite xref">RFC9449</a>]</span>, mutual-TLS client certificate binding <span>[<a href="#RFC8705" class="cite xref">RFC8705</a>]</span>, or an equivalent mechanism. PKCE <span>[<a href="#RFC7636" class="cite xref">RFC7636</a>]</span>, while required as a continuation binding for public clients by <a href="#authorization-endpoint-pkce" class="auto internal xref">Section 9.3</a>, is not by itself sufficient for long-lived front-channel deferred codes: PKCE binds the client instance that originated the request, but a stolen browser session retaining access to the original client instance can complete continuation. Sender-constraining the deferred code itself defends against this case.<a href="#section-18.6-7" class="pilcrow">¶</a></p>
+<p id="section-18.6-8">Authorization servers <span class="bcp14">SHOULD</span> bind deferred processing state created from an authorization endpoint originating request to enough device or session context to detect when continuation requests arrive from a context inconsistent with the originating request. Detection of inconsistent continuation context is not by itself grounds for rejection (legitimate cross-device flows can produce inconsistent context), but <span class="bcp14">SHOULD</span> be reported as a security event for monitoring and <span class="bcp14">MAY</span> trigger additional risk-based controls defined by local policy or higher-layer profiles.<a href="#section-18.6-8" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="partial-completion-security">
@@ -3477,7 +3474,6 @@ assertion=eyJhbGciOi...
 <p id="section-18.7-3">The partial artifact and the deferred code have independent lifetimes. The deferred code lifetime is governed by the lifetime guidance in <a href="#lifetime-considerations" class="auto internal xref">Section 18.11</a>; the partial artifact's lifetime is governed by the issuing grant type's normal rules. Authorization servers <span class="bcp14">SHOULD NOT</span> issue partial artifacts whose lifetimes exceed what the originating request would have produced under full synchronous completion.<a href="#section-18.7-3" class="pilcrow">¶</a></p>
 <p id="section-18.7-4">Sender-constraining material applied to the originating request <span class="bcp14">MUST</span> also apply to the partial artifact in the same way it applies to a fully synchronously issued artifact. The continuation upgrade preserves sender-constraining continuity as defined in <a href="#proof-of-possession-continuity" class="auto internal xref">Section 18.3</a>; the upgraded artifact <span class="bcp14">MUST</span> be bound to the same proof-of-possession material as the partial artifact.<a href="#section-18.7-4" class="pilcrow">¶</a></p>
 <p id="section-18.7-5">When continuation completes successfully and the profile defines replacement semantics, the authorization server <span class="bcp14">MUST</span> invalidate the partial artifact no later than when the upgrade response is returned. Failure to invalidate creates a window in which both the partial and upgraded artifacts authorize concurrent access, weakening the rotation and replay guarantees of the originating grant type.<a href="#section-18.7-5" class="pilcrow">¶</a></p>
-<p id="section-18.7-6">Authorization servers <span class="bcp14">SHOULD</span> record partial completion events with sufficient correlation to permit post-hoc audit of what was issued partially, what upgrade outcome was reached, and whether artifact invalidation occurred.<a href="#section-18.7-6" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="interaction-uri-protection">
@@ -3487,7 +3483,7 @@ assertion=eyJhbGciOi...
         </h3>
 <p id="section-18.8-1">Interaction URIs <span class="bcp14">MUST</span> use HTTPS.<a href="#section-18.8-1" class="pilcrow">¶</a></p>
 <p id="section-18.8-2">When the interaction at the <code>interaction_uri</code> requires an authenticated actor, authorization servers <span class="bcp14">SHOULD</span> bind the interaction state to that actor's authenticated session.<a href="#section-18.8-2" class="pilcrow">¶</a></p>
-<p id="section-18.8-3">Interaction URIs can become bearer references to sensitive continuation state. Authorization servers <span class="bcp14">MUST NOT</span> place sensitive information in URI query components. Authorization servers <span class="bcp14">SHOULD</span> use referrer-policy, cache-control, and logging practices that reduce disclosure of interaction URIs.<a href="#section-18.8-3" class="pilcrow">¶</a></p>
+<p id="section-18.8-3">Interaction URIs can become bearer references to sensitive continuation state. Authorization servers <span class="bcp14">MUST NOT</span> place sensitive information in URI query components.<a href="#section-18.8-3" class="pilcrow">¶</a></p>
 <p id="section-18.8-4">Clients <span class="bcp14">MUST NOT</span> assume that accessing an interaction URI completes authorization or authentication. Completion semantics are defined by the authorization server or by a higher-layer profile.<a href="#section-18.8-4" class="pilcrow">¶</a></p>
 </section>
 </div>
@@ -3506,9 +3502,7 @@ assertion=eyJhbGciOi...
         <h3 id="name-continuation-request-rate-l">
 <a href="#section-18.10" class="section-number selfRef">18.10. </a><a href="#name-continuation-request-rate-l" class="section-name selfRef">Continuation Request Rate Limiting</a>
         </h3>
-<p id="section-18.10-1">Authorization servers <span class="bcp14">SHOULD</span> rate limit continuation requests.<a href="#section-18.10-1" class="pilcrow">¶</a></p>
-<p id="section-18.10-2">Clients <span class="bcp14">SHOULD</span> respect the <code>interval</code> parameter.<a href="#section-18.10-2" class="pilcrow">¶</a></p>
-<p id="section-18.10-3">Authorization servers <span class="bcp14">MAY</span> increase the <code>interval</code> value when clients poll too frequently.<a href="#section-18.10-3" class="pilcrow">¶</a></p>
+<p id="section-18.10-1">Authorization servers <span class="bcp14">SHOULD</span> rate limit continuation requests and <span class="bcp14">MAY</span> increase the <code>interval</code> value when clients poll too frequently. Client <code>interval</code> handling is defined in <a href="#client-behavior" class="auto internal xref">Section 6.1</a>.<a href="#section-18.10-1" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="lifetime-considerations">
@@ -3588,7 +3582,7 @@ assertion=eyJhbGciOi...
 <a href="#section-18.17" class="section-number selfRef">18.17. </a><a href="#name-notification-token-protecti" class="section-name selfRef">Notification Token Protection</a>
         </h3>
 <p id="section-18.17-1">The <code>notification_token</code> is a bearer credential. Authorization servers <span class="bcp14">MUST</span> issue notification tokens with sufficient entropy to resist guessing and <span class="bcp14">MUST</span> transmit them only over TLS-protected responses to the client.<a href="#section-18.17-1" class="pilcrow">¶</a></p>
-<p id="section-18.17-2">Authorization servers <span class="bcp14">SHOULD</span> limit notification token lifetime to no longer than the lifetime of the associated deferred processing state and <span class="bcp14">SHOULD</span> invalidate notification tokens promptly when the deferred processing state ends.<a href="#section-18.17-2" class="pilcrow">¶</a></p>
+<p id="section-18.17-2">Authorization servers <span class="bcp14">MUST NOT</span> extend notification token lifetime beyond the lifetime of the associated deferred processing state.<a href="#section-18.17-2" class="pilcrow">¶</a></p>
 <p id="section-18.17-3">Authorization servers <span class="bcp14">MUST NOT</span> reuse a <code>notification_token</code> value across distinct deferred processing states.<a href="#section-18.17-3" class="pilcrow">¶</a></p>
 </section>
 </div>
@@ -3607,8 +3601,8 @@ assertion=eyJhbGciOi...
         <h3 id="name-privacy-considerations">
 <a href="#section-18.19" class="section-number selfRef">18.19. </a><a href="#name-privacy-considerations" class="section-name selfRef">Privacy Considerations</a>
         </h3>
-<p id="section-18.19-1">Deferred processing can retain information from the originating request, including subject identifiers, requested resources, policy evaluation inputs, attestation evidence, or transaction details. Authorization servers <span class="bcp14">SHOULD</span> minimize retained state, protect it at rest, and delete it when processing completes or expires.<a href="#section-18.19-1" class="pilcrow">¶</a></p>
-<p id="section-18.19-2">Interaction URIs and deferred codes <span class="bcp14">SHOULD NOT</span> reveal user identifiers, client identifiers, resource identifiers, transaction details, or policy decisions to parties that can observe browser history, logs, referrer headers, or network metadata.<a href="#section-18.19-2" class="pilcrow">¶</a></p>
+<p id="section-18.19-1">Deferred processing can retain information from the originating request, including subject identifiers, requested resources, policy evaluation inputs, attestation evidence, or transaction details. Authorization servers handle this retained state according to the privacy and data-minimization requirements applicable to the deployment.<a href="#section-18.19-1" class="pilcrow">¶</a></p>
+<p id="section-18.19-2">Interaction URIs and deferred codes <span class="bcp14">MUST NOT</span> reveal user identifiers, client identifiers, resource identifiers, transaction details, or policy decisions to parties that can observe browser history, logs, referrer headers, or network metadata, consistent with the opacity and information-leakage requirements stated above.<a href="#section-18.19-2" class="pilcrow">¶</a></p>
 </section>
 </div>
 </section>
@@ -4455,7 +4449,7 @@ Pragma: no-cache
       <h2 id="name-profile-author-checklist">
 <a href="#appendix-E" class="section-number selfRef">Appendix E. </a><a href="#name-profile-author-checklist" class="section-name selfRef">Profile Author Checklist</a>
       </h2>
-<p id="appendix-E-1">A higher-layer profile of this specification <span class="bcp14">SHOULD</span> answer the following questions to demonstrate fit with the substrate's extension model. The checklist is intended as guidance for profile authors; it does not impose normative requirements beyond those already stated in the body of this specification.<a href="#appendix-E-1" class="pilcrow">¶</a></p>
+<p id="appendix-E-1">The following questions are intended as guidance for higher-layer profile authors to demonstrate fit with the substrate's extension model. The checklist does not impose normative requirements beyond those already stated in the body of this specification; the verbs used below are descriptive, not normative.<a href="#appendix-E-1" class="pilcrow">¶</a></p>
 <ol start="1" type="1" class="normal type-1" id="appendix-E-2">
 <li id="appendix-E-2.1">
           <p id="appendix-E-2.1.1"><strong>Per-request opt-in signal.</strong> Does the profile introduce a new mode the client must opt into on a per-request basis? If the mode is a <em>completion mode</em> (how the request's result reaches the client), register a value in the "OAuth Completion Mode Values" registry established by this specification. If the mode is a <em>shape or handling mode</em> (what the produced grant looks like, or how the originating request is handled), register the value in a registry established outside this specification: for example, in the OAuth Grant Mode Values registry established by <span>[<a href="#INTERIM-GRANT-MODE" class="cite xref">INTERIM-GRANT-MODE</a>]</span>, or in a registry the profile establishes itself by bundling parameter mechanics with its first value (the RFC 9396 model). Specify how the new value interacts with <code>deferred</code> and any other registered values.<a href="#appendix-E-2.1.1" class="pilcrow">¶</a></p>
@@ -4476,13 +4470,13 @@ Pragma: no-cache
           <p id="appendix-E-2.6.1"><strong>Client capability.</strong> Does the profile require client opt-in beyond the substrate-level <code>deferred_code_processing_supported</code> metadata? If so, define profile-specific client metadata and specify its interaction with the substrate-level capability flag.<a href="#appendix-E-2.6.1" class="pilcrow">¶</a></p>
 </li>
         <li id="appendix-E-2.7">
-          <p id="appendix-E-2.7.1"><strong>Authorization server metadata.</strong> Profiles <span class="bcp14">SHOULD</span> register an AS metadata flag in the "OAuth Authorization Server Metadata" registry so clients can discover support for the profile.<a href="#appendix-E-2.7.1" class="pilcrow">¶</a></p>
+          <p id="appendix-E-2.7.1"><strong>Authorization server metadata.</strong> Profiles typically register an AS metadata flag in the "OAuth Authorization Server Metadata" registry so clients can discover support for the profile.<a href="#appendix-E-2.7.1" class="pilcrow">¶</a></p>
 </li>
         <li id="appendix-E-2.8">
-          <p id="appendix-E-2.8.1"><strong>Security considerations.</strong> Profile authors <span class="bcp14">SHOULD</span> document security considerations specific to their profile, including any new attack surface introduced by profile-defined mechanisms, deferred-code or handle lifetime considerations beyond the base specification's guidance, and any additional sender-constraining or auditing requirements.<a href="#appendix-E-2.8.1" class="pilcrow">¶</a></p>
+          <p id="appendix-E-2.8.1"><strong>Security considerations.</strong> Profile authors document security considerations specific to their profile, including any new attack surface introduced by profile-defined mechanisms, deferred-code or handle lifetime considerations beyond the base specification's guidance, and any additional sender-constraining or auditing requirements.<a href="#appendix-E-2.8.1" class="pilcrow">¶</a></p>
 </li>
         <li id="appendix-E-2.9">
-          <p id="appendix-E-2.9.1"><strong>Composition with other profiles.</strong> If multiple profiles can apply to the same request, the profile <span class="bcp14">SHOULD</span> specify precedence and composition rules, particularly for opt-in signal values present together and response parameters appearing together.<a href="#appendix-E-2.9.1" class="pilcrow">¶</a></p>
+          <p id="appendix-E-2.9.1"><strong>Composition with other profiles.</strong> If multiple profiles can apply to the same request, the profile specifies precedence and composition rules, particularly for opt-in signal values present together and response parameters appearing together.<a href="#appendix-E-2.9.1" class="pilcrow">¶</a></p>
 </li>
       </ol>
 <p id="appendix-E-3">Worked examples of profile authorship are available in two places. The companion specification <span>[<a href="#INTERIM-GRANT-MODE" class="cite xref">INTERIM-GRANT-MODE</a>]</span> demonstrates the RFC 9396 model of bundling a parameter framework (the <code>grant_mode</code> parameter and its registry) with its first registered value (<code>interim</code>), illustrating how a profile that introduces a new request parameter mechanism can serve as the publication vehicle for that mechanism. The proposals/ directory in this specification's repository contains additional worked examples ranging from simple single-value profiles (a new <code>completion_mode</code> value layered on the substrate's advisory delivery hook) to complex profiles (a new externally-observable state with profile-defined response parameters and a profile-defined parameter-update mechanism layered on the substrate's generic carve-out).<a href="#appendix-E-3" class="pilcrow">¶</a></p>
